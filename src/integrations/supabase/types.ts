@@ -9,13 +9,151 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      group_members: {
+        Row: {
+          group_id: string
+          id: string
+          joined_at: string
+          user_id: string
+        }
+        Insert: {
+          group_id: string
+          id?: string
+          joined_at?: string
+          user_id: string
+        }
+        Update: {
+          group_id?: string
+          id?: string
+          joined_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      groups: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          is_private: boolean
+          name: string
+          password: string | null
+          profile_pic: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          is_private?: boolean
+          name: string
+          password?: string | null
+          profile_pic?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          is_private?: boolean
+          name?: string
+          password?: string | null
+          profile_pic?: string | null
+        }
+        Relationships: []
+      }
+      messages: {
+        Row: {
+          content: string | null
+          content_type: string
+          created_at: string
+          deleted_by: string | null
+          file_url: string | null
+          group_id: string
+          id: string
+          is_deleted: boolean
+          user_id: string
+        }
+        Insert: {
+          content?: string | null
+          content_type?: string
+          created_at?: string
+          deleted_by?: string | null
+          file_url?: string | null
+          group_id: string
+          id?: string
+          is_deleted?: boolean
+          user_id: string
+        }
+        Update: {
+          content?: string | null
+          content_type?: string
+          created_at?: string
+          deleted_by?: string | null
+          file_url?: string | null
+          group_id?: string
+          id?: string
+          is_deleted?: boolean
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          account_status: string
+          country: string | null
+          date_joined: string
+          dob: string | null
+          id: string
+          last_login: string
+          name: string
+          profile_pic: string | null
+        }
+        Insert: {
+          account_status?: string
+          country?: string | null
+          date_joined?: string
+          dob?: string | null
+          id: string
+          last_login?: string
+          name: string
+          profile_pic?: string | null
+        }
+        Update: {
+          account_status?: string
+          country?: string | null
+          date_joined?: string
+          dob?: string | null
+          id?: string
+          last_login?: string
+          name?: string
+          profile_pic?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      generate_random_code: {
+        Args: { length: number }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
