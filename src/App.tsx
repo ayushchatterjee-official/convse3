@@ -5,8 +5,15 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
+
+// Pages
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import Dashboard from "./pages/Dashboard";
+import ChatRoom from "./pages/ChatRoom";
+import Profile from "./pages/Profile";
+import Settings from "./pages/Settings";
+import ExploreGroups from "./pages/ExploreGroups";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -21,6 +28,11 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/chat/:groupId" element={<ChatRoom />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/explore" element={<ExploreGroups />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </TooltipProvider>
