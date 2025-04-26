@@ -168,7 +168,7 @@ const ChatRoom = () => {
         .single();
       
       if (error) throw error;
-      setGroup(data);
+      setGroup(data as Group);
     } catch (error) {
       console.error('Error fetching group:', error);
     }
@@ -183,7 +183,7 @@ const ChatRoom = () => {
         .from('messages')
         .select(`
           *,
-          profiles:user_id (
+          profiles (
             name,
             profile_pic
           )
@@ -192,7 +192,16 @@ const ChatRoom = () => {
         .order('created_at', { ascending: true });
       
       if (error) throw error;
-      setMessages(data || []);
+      
+      if (data) {
+        // Type assertion to ensure we have the correct shape for messages
+        const typedMessages = data.map(msg => ({
+          ...msg,
+          content_type: msg.content_type as 'text' | 'link' | 'image' | 'video' | 'file', // Cast to the expected union type
+        })) as Message[];
+        
+        setMessages(typedMessages);
+      }
     } catch (error) {
       console.error('Error fetching messages:', error);
       toast.error('Failed to load messages');
@@ -207,7 +216,7 @@ const ChatRoom = () => {
         .from('messages')
         .select(`
           *,
-          profiles:user_id (
+          profiles (
             name,
             profile_pic
           )
@@ -218,7 +227,13 @@ const ChatRoom = () => {
       if (error) throw error;
       
       if (data) {
-        setMessages(current => [...current, data]);
+        // Cast the content_type to the correct type
+        const typedMessage = {
+          ...data,
+          content_type: data.content_type as 'text' | 'link' | 'image' | 'video' | 'file'
+        } as Message;
+        
+        setMessages(current => [...current, typedMessage]);
       }
     } catch (error) {
       console.error('Error fetching new message:', error);
@@ -233,7 +248,7 @@ const ChatRoom = () => {
         .from('group_members')
         .select(`
           user_id,
-          profiles:user_id (
+          profiles:profiles (
             name,
             profile_pic
           )
@@ -241,7 +256,12 @@ const ChatRoom = () => {
         .eq('group_id', groupId);
       
       if (error) throw error;
-      setMembers(data || []);
+      
+      // Ensure we have the correct type by forcing the result to match GroupMember[]
+      if (data) {
+        const typedMembers = data as unknown as GroupMember[];
+        setMembers(typedMembers);
+      }
     } catch (error) {
       console.error('Error fetching members:', error);
     }
