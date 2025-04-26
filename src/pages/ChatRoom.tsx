@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -76,7 +75,6 @@ const ChatRoom = () => {
       return;
     }
     
-    // Check if user is a member of the group
     const checkMembership = async () => {
       try {
         const { data, error } = await supabase
@@ -92,12 +90,10 @@ const ChatRoom = () => {
           return;
         }
         
-        // Fetch group details
         fetchGroup();
         fetchMessages();
         fetchMembers();
         
-        // Subscribe to new messages
         const subscription = supabase
           .channel('public:messages')
           .on(
@@ -110,11 +106,9 @@ const ChatRoom = () => {
             }, 
             (payload) => {
               if (payload.eventType === 'INSERT') {
-                // Fetch the new message with profile information
                 fetchNewMessage(payload.new.id);
               }
               if (payload.eventType === 'UPDATE') {
-                // Update the message in the state
                 setMessages(currentMessages => 
                   currentMessages.map(msg => 
                     msg.id === payload.new.id ? { ...msg, ...payload.new } : msg
@@ -125,7 +119,6 @@ const ChatRoom = () => {
           )
           .subscribe();
           
-        // Subscribe to member changes
         const memberSubscription = supabase
           .channel('public:group_members')
           .on(
@@ -194,10 +187,13 @@ const ChatRoom = () => {
       if (error) throw error;
       
       if (data) {
-        // Type assertion to ensure we have the correct shape for messages
         const typedMessages = data.map(msg => ({
           ...msg,
-          content_type: msg.content_type as 'text' | 'link' | 'image' | 'video' | 'file', // Cast to the expected union type
+          content_type: msg.content_type as 'text' | 'link' | 'image' | 'video' | 'file',
+          profiles: msg.profiles ? {
+            name: msg.profiles.name,
+            profile_pic: msg.profiles.profile_pic
+          } : null
         })) as Message[];
         
         setMessages(typedMessages);
@@ -227,10 +223,13 @@ const ChatRoom = () => {
       if (error) throw error;
       
       if (data) {
-        // Cast the content_type to the correct type
         const typedMessage = {
           ...data,
-          content_type: data.content_type as 'text' | 'link' | 'image' | 'video' | 'file'
+          content_type: data.content_type as 'text' | 'link' | 'image' | 'video' | 'file',
+          profiles: data.profiles ? {
+            name: data.profiles.name,
+            profile_pic: data.profiles.profile_pic
+          } : null
         } as Message;
         
         setMessages(current => [...current, typedMessage]);
@@ -257,9 +256,15 @@ const ChatRoom = () => {
       
       if (error) throw error;
       
-      // Ensure we have the correct type by forcing the result to match GroupMember[]
       if (data) {
-        const typedMembers = data as unknown as GroupMember[];
+        const typedMembers = data.map(member => ({
+          user_id: member.user_id,
+          profiles: member.profiles ? {
+            name: member.profiles.name,
+            profile_pic: member.profiles.profile_pic
+          } : null
+        })) as GroupMember[];
+        
         setMembers(typedMembers);
       }
     } catch (error) {
@@ -347,7 +352,6 @@ const ChatRoom = () => {
   return (
     <DashboardLayout>
       <div className="flex h-[calc(100vh-64px)]">
-        {/* Members sidebar */}
         {showMembers && (
           <div className="w-64 border-r border-gray-200 bg-white p-4">
             <div className="flex justify-between items-center mb-4">
@@ -380,9 +384,7 @@ const ChatRoom = () => {
           </div>
         )}
         
-        {/* Main chat area */}
         <div className="flex flex-col w-full">
-          {/* Chat header */}
           <div className="border-b p-4 flex items-center justify-between bg-white">
             <div className="flex items-center">
               <Button 
@@ -435,7 +437,6 @@ const ChatRoom = () => {
             </div>
           </div>
           
-          {/* Messages area */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
             {loading ? (
               <div className="flex justify-center py-12">
@@ -533,7 +534,6 @@ const ChatRoom = () => {
             <div ref={messagesEndRef} />
           </div>
           
-          {/* Message input */}
           <div className="border-t p-4 bg-white">
             <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
               <Button 

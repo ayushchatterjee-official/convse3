@@ -1,11 +1,10 @@
-
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { DashboardLayout } from '@/components/layouts/DashboardLayout';
 import GroupList from '@/components/groups/GroupList';
-import CreateGroupDialog from '@/components/groups/CreateGroupDialog';
+import { CreateGroupDialog } from '@/components/groups/CreateGroupDialog';
 
 const Dashboard = () => {
   const { user, loading } = useAuth();
