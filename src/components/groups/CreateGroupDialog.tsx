@@ -47,6 +47,9 @@ const CreateGroupDialog = () => {
     
     setLoading(true);
     try {
+      // Generate a random code - we'll have the DB generate this for us now
+      // Instead of generating the code here, let the database function handle it
+      
       // Create group in database
       const { data: group, error: groupError } = await supabase
         .from('groups')
@@ -54,7 +57,8 @@ const CreateGroupDialog = () => {
           name: groupName,
           is_private: isPrivate,
           password: isPrivate ? password : null,
-          profile_pic: profilePic
+          profile_pic: profilePic,
+          code: await generateGroupCode() // Generate code client-side as a fallback
         })
         .select()
         .single();
@@ -80,6 +84,16 @@ const CreateGroupDialog = () => {
     } finally {
       setLoading(false);
     }
+  };
+  
+  // Generate a random group code if needed
+  const generateGroupCode = async (): Promise<string> => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    for (let i = 0; i < 8; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
   };
   
   const resetForm = () => {

@@ -79,7 +79,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const cachedProfile = Cookies.get('userProfile');
       if (cachedProfile) {
         const parsed = JSON.parse(cachedProfile);
-        setProfile(parsed);
+        setProfile(parsed as Profile);
       }
       
       // Fetch fresh profile from database
@@ -91,10 +91,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       if (error) throw error;
       
+      const typedProfile: Profile = {
+        ...data,
+        account_status: data.account_status as 'normal' | 'admin' | 'verified'
+      };
+      
       // Update state and cookies with fresh data
-      setProfile(data);
+      setProfile(typedProfile);
       Cookies.set('userId', userId, { expires: 7 });
-      Cookies.set('userProfile', JSON.stringify(data), { expires: 7 });
+      Cookies.set('userProfile', JSON.stringify(typedProfile), { expires: 7 });
       
     } catch (error) {
       console.error('Error fetching profile:', error);

@@ -24,20 +24,22 @@ import {
   Users
 } from 'lucide-react';
 
+interface MessageProfile {
+  name: string;
+  profile_pic: string | null;
+}
+
 interface Message {
   id: string;
   group_id: string;
   user_id: string;
-  content: string;
+  content: string | null;
   content_type: 'text' | 'link' | 'image' | 'video' | 'file';
   file_url: string | null;
   is_deleted: boolean;
   deleted_by: string | null;
   created_at: string;
-  profiles: {
-    name: string;
-    profile_pic: string | null;
-  } | null;
+  profiles: MessageProfile | null;
 }
 
 interface GroupMember {
