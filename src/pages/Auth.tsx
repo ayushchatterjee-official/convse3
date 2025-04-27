@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/card';
@@ -42,7 +43,8 @@ const Auth = () => {
     if (dob) {
       const birthDate = new Date(dob);
       const today = new Date();
-      const age = today.getFullYear() - birthDate.getFullYear();
+      // Changed from const to let so we can modify it
+      let age = today.getFullYear() - birthDate.getFullYear();
       const monthDiff = today.getMonth() - birthDate.getMonth();
       
       if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
@@ -275,7 +277,7 @@ const Auth = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="dob">Date of Birth (YYYY-MM-DD)</Label>
+                    <Label htmlFor="dob">Date of Birth</Label>
                     <Input
                       id="dob"
                       type="date"
