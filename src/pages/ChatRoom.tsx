@@ -57,6 +57,10 @@ interface Group {
   code: string;
 }
 
+function isValidProfile(obj: any): obj is MessageProfile {
+  return obj && typeof obj === 'object' && 'name' in obj;
+}
+
 const ChatRoom = () => {
   const { groupId } = useParams<{ groupId: string }>();
   const { user, profile } = useAuth();
@@ -176,7 +180,7 @@ const ChatRoom = () => {
         .from('messages')
         .select(`
           *,
-          profiles (
+          profiles:user_id(
             name,
             profile_pic
           )
@@ -187,14 +191,15 @@ const ChatRoom = () => {
       if (error) throw error;
       
       if (data) {
-        const typedMessages = data.map(msg => ({
-          ...msg,
-          content_type: msg.content_type as 'text' | 'link' | 'image' | 'video' | 'file',
-          profiles: msg.profiles ? {
-            name: msg.profiles.name,
-            profile_pic: msg.profiles.profile_pic
-          } : null
-        })) as Message[];
+        const typedMessages = data.map(msg => {
+          const profileData = isValidProfile(msg.profiles) ? msg.profiles : null;
+          
+          return {
+            ...msg,
+            content_type: msg.content_type as 'text' | 'link' | 'image' | 'video' | 'file',
+            profiles: profileData
+          };
+        }) as Message[];
         
         setMessages(typedMessages);
       }
@@ -212,7 +217,7 @@ const ChatRoom = () => {
         .from('messages')
         .select(`
           *,
-          profiles (
+          profiles:user_id(
             name,
             profile_pic
           )
@@ -223,13 +228,12 @@ const ChatRoom = () => {
       if (error) throw error;
       
       if (data) {
+        const profileData = isValidProfile(data.profiles) ? data.profiles : null;
+        
         const typedMessage = {
           ...data,
           content_type: data.content_type as 'text' | 'link' | 'image' | 'video' | 'file',
-          profiles: data.profiles ? {
-            name: data.profiles.name,
-            profile_pic: data.profiles.profile_pic
-          } : null
+          profiles: profileData
         } as Message;
         
         setMessages(current => [...current, typedMessage]);
@@ -247,7 +251,7 @@ const ChatRoom = () => {
         .from('group_members')
         .select(`
           user_id,
-          profiles:profiles (
+          profiles:user_id(
             name,
             profile_pic
           )
@@ -257,13 +261,14 @@ const ChatRoom = () => {
       if (error) throw error;
       
       if (data) {
-        const typedMembers = data.map(member => ({
-          user_id: member.user_id,
-          profiles: member.profiles ? {
-            name: member.profiles.name,
-            profile_pic: member.profiles.profile_pic
-          } : null
-        })) as GroupMember[];
+        const typedMembers = data.map(member => {
+          const profileData = isValidProfile(member.profiles) ? member.profiles : null;
+          
+          return {
+            user_id: member.user_id,
+            profiles: profileData
+          };
+        }) as GroupMember[];
         
         setMembers(typedMembers);
       }
@@ -377,7 +382,7 @@ const ChatRoom = () => {
                       </AvatarFallback>
                     )}
                   </Avatar>
-                  <span className="text-sm">{member.profiles?.name}</span>
+                  <span className="text-sm">{member.profiles?.name || 'Unknown User'}</span>
                 </div>
               ))}
             </div>
@@ -468,7 +473,7 @@ const ChatRoom = () => {
                     <div>
                       <div className="flex items-end space-x-1">
                         {msg.user_id !== user?.id && (
-                          <span className="text-xs text-gray-500 mb-1">{msg.profiles?.name}</span>
+                          <span className="text-xs text-gray-500 mb-1">{msg.profiles?.name || 'Unknown User'}</span>
                         )}
                       </div>
                       
