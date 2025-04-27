@@ -283,7 +283,7 @@ const ChatRoom = () => {
     if (!message.trim() || !user || !groupId) return;
     
     try {
-      await supabase
+      const { error } = await supabase
         .from('messages')
         .insert({
           group_id: groupId,
@@ -292,13 +292,50 @@ const ChatRoom = () => {
           content_type: 'text'
         });
       
+      if (error) throw error;
       setMessage('');
     } catch (error) {
       console.error('Error sending message:', error);
       toast.error('Failed to send message');
     }
   };
-  
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'file') => {
+    if (!e.target.files || !e.target.files[0] || !user || !groupId) return;
+
+    const file = e.target.files[0];
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Math.random()}.${fileExt}`;
+    const filePath = `${groupId}/${fileName}`;
+
+    try {
+      const { error: uploadError, data } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      const { error: messageError } = await supabase
+        .from('messages')
+        .insert({
+          group_id: groupId,
+          user_id: user.id,
+          content: file.name,
+          content_type: type,
+          file_url: publicUrl
+        });
+
+      if (messageError) throw messageError;
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      toast.error('Failed to upload file');
+    }
+  };
+
   const handleDeleteMessage = async (messageId: string) => {
     try {
       await supabase
@@ -541,22 +578,47 @@ const ChatRoom = () => {
           
           <div className="border-t p-4 bg-white">
             <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
-              <Button 
-                type="button" 
-                variant="ghost" 
-                size="icon"
-                className="shrink-0"
+              <input
+                type="file"
+                id="image-upload"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => handleFileUpload(e, 'image')}
+              />
+              <label 
+                htmlFor="image-upload" 
+                className="cursor-pointer"
               >
-                <Image className="h-5 w-5" />
-              </Button>
-              <Button 
-                type="button" 
-                variant="ghost" 
-                size="icon"
-                className="shrink-0"
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="icon"
+                  className="shrink-0"
+                >
+                  <Image className="h-5 w-5" />
+                </Button>
+              </label>
+
+              <input
+                type="file"
+                id="file-upload"
+                className="hidden"
+                onChange={(e) => handleFileUpload(e, 'file')}
+              />
+              <label 
+                htmlFor="file-upload" 
+                className="cursor-pointer"
               >
-                <File className="h-5 w-5" />
-              </Button>
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="icon"
+                  className="shrink-0"
+                >
+                  <File className="h-5 w-5" />
+                </Button>
+              </label>
+
               <Input
                 type="text"
                 placeholder="Type a message..."
