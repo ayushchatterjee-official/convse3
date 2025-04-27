@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -68,6 +67,28 @@ const Profile = () => {
     try {
       setIsUpdating(true);
       
+      // Validate date format and age if dob is provided
+      if (dob) {
+        const birthDate = new Date(dob);
+        const today = new Date();
+        const age = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+        
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+          age--;
+        }
+        
+        if (age < 7) {
+          toast.error("You must be at least 7 years old");
+          return;
+        }
+
+        if (isNaN(birthDate.getTime())) {
+          toast.error("Please enter a valid date in YYYY-MM-DD format");
+          return;
+        }
+      }
+
       await updateProfile({
         name,
         country,
@@ -207,26 +228,13 @@ const Profile = () => {
                   
                   <div className="space-y-2">
                     <Label>Date of Birth</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="w-full justify-start text-left font-normal"
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {dob ? format(dob, "PPP") : <span className="text-muted-foreground">Pick a date</span>}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={dob}
-                          onSelect={setDob}
-                          initialFocus
-                          disabled={(date) => date > new Date()}
-                        />
-                      </PopoverContent>
-                    </Popover>
+                    <Input
+                      type="date"
+                      value={dob ? new Date(dob).toISOString().split('T')[0] : ''}
+                      max={new Date(new Date().setFullYear(new Date().getFullYear() - 7)).toISOString().split('T')[0]}
+                      onChange={(e) => setDob(e.target.value ? new Date(e.target.value) : undefined)}
+                      className="w-full"
+                    />
                   </div>
                 </div>
                 

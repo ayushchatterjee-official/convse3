@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/card';
@@ -38,6 +37,27 @@ const Auth = () => {
     if (password !== confirmPassword) {
       toast.error("Passwords don't match");
       return;
+    }
+
+    if (dob) {
+      const birthDate = new Date(dob);
+      const today = new Date();
+      const age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+      
+      if (age < 7) {
+        toast.error("You must be at least 7 years old to sign up");
+        return;
+      }
+
+      if (isNaN(birthDate.getTime())) {
+        toast.error("Please enter a valid date in YYYY-MM-DD format");
+        return;
+      }
     }
     
     setLoading(true);
@@ -255,27 +275,14 @@ const Auth = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Date of Birth</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="w-full justify-start text-left font-normal"
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {dob ? format(dob, "PPP") : <span className="text-muted-foreground">Pick a date</span>}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={dob}
-                          onSelect={setDob}
-                          initialFocus
-                          disabled={(date) => date > new Date()}
-                        />
-                      </PopoverContent>
-                    </Popover>
+                    <Label htmlFor="dob">Date of Birth (YYYY-MM-DD)</Label>
+                    <Input
+                      id="dob"
+                      type="date"
+                      max={new Date(new Date().setFullYear(new Date().getFullYear() - 7)).toISOString().split('T')[0]}
+                      onChange={(e) => setDob(e.target.value ? new Date(e.target.value) : undefined)}
+                      required
+                    />
                   </div>
                   
                   <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={loading}>
