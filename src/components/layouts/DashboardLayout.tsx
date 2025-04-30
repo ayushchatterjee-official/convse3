@@ -11,14 +11,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import { LogOut, Settings, User, MessageSquare, Menu, X } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { LogOut, Settings, User, MessageSquare, Menu, X, Shield } from 'lucide-react';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
 }
 
 export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -36,6 +37,15 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     { label: 'Profile', path: '/profile', icon: <User className="h-5 w-5" /> },
     { label: 'Settings', path: '/settings', icon: <Settings className="h-5 w-5" /> },
   ];
+  
+  // Add admin panel link for site admins
+  if (isAdmin) {
+    menuItems.push({ 
+      label: 'Admin Panel', 
+      path: '/admin', 
+      icon: <Shield className="h-5 w-5" /> 
+    });
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -86,10 +96,20 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
                   <div className="px-2 py-1.5">
-                    <p className="text-sm font-medium">{profile?.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium">{profile?.name}</p>
+                      {profile?.account_status === 'admin' && (
+                        <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
+                          Admin
+                        </Badge>
+                      )}
+                      {profile?.account_status === 'verified' && (
+                        <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
+                          ✓ Verified
+                        </Badge>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-500 truncate">
-                      {profile?.account_status === 'admin' && '👑 '}
-                      {profile?.account_status === 'verified' && '✓ '}
                       {profile?.account_status}
                     </p>
                   </div>
@@ -102,6 +122,12 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                     <Settings className="mr-2 h-4 w-4" />
                     <span>Settings</span>
                   </DropdownMenuItem>
+                  {isAdmin && (
+                    <DropdownMenuItem onClick={() => navigate('/admin')}>
+                      <Shield className="mr-2 h-4 w-4" />
+                      <span>Admin Panel</span>
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={signOut}>
                     <LogOut className="mr-2 h-4 w-4" />

@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -15,6 +14,7 @@ interface Profile {
   last_login: string;
   country?: string;
   account_status: 'normal' | 'admin' | 'verified';
+  banned: boolean;
 }
 
 interface AuthContextType {
@@ -29,6 +29,8 @@ interface AuthContextType {
   updateProfile: (profileData: Partial<Profile>) => Promise<void>;
   deleteAccount: () => Promise<void>;
   loading: boolean;
+  isAdmin: boolean;
+  isVerified: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -38,6 +40,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isVerified, setIsVerified] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -54,6 +58,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           }, 0);
         } else if (event === 'SIGNED_OUT') {
           setProfile(null);
+          setIsAdmin(false);
+          setIsVerified(false);
           Cookies.remove('userId');
           Cookies.remove('userProfile');
         }
@@ -80,6 +86,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (cachedProfile) {
         const parsed = JSON.parse(cachedProfile);
         setProfile(parsed as Profile);
+        setIsAdmin(parsed.account_status === 'admin');
+        setIsVerified(parsed.account_status === 'verified');
       }
       
       // Fetch fresh profile from database
@@ -98,6 +106,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       // Update state and cookies with fresh data
       setProfile(typedProfile);
+      setIsAdmin(typedProfile.account_status === 'admin');
+      setIsVerified(typedProfile.account_status === 'verified');
       Cookies.set('userId', userId, { expires: 7 });
       Cookies.set('userProfile', JSON.stringify(typedProfile), { expires: 7 });
       
@@ -231,6 +241,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       updateProfile,
       deleteAccount,
       loading,
+      isAdmin,
+      isVerified
     }}>
       {children}
     </AuthContext.Provider>

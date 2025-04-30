@@ -10,8 +10,17 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import { 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from 'sonner';
 import { 
   Send, 
@@ -20,8 +29,11 @@ import {
   File, 
   Trash2, 
   ArrowLeft,
-  Users
+  Users,
+  Shield,
+  UserX
 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 interface MessageProfile {
   name: string;
@@ -43,9 +55,12 @@ interface Message {
 
 interface GroupMember {
   user_id: string;
+  is_admin: boolean;
+  banned: boolean;
   profiles: {
     name: string;
     profile_pic: string | null;
+    account_status: string;
   } | null;
 }
 
@@ -63,7 +78,7 @@ function isValidProfile(obj: any): obj is MessageProfile {
 
 const ChatRoom = () => {
   const { groupId } = useParams<{ groupId: string }>();
-  const { user, profile } = useAuth();
+  const { user, profile, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [messages, setMessages] = useState<Message[]>([]);
   const [members, setMembers] = useState<GroupMember[]>([]);
@@ -71,6 +86,9 @@ const ChatRoom = () => {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [showMembers, setShowMembers] = useState(false);
+  const [isGroupAdmin, setIsGroupAdmin] = useState(false);
+  const [memberToAction, setMemberToAction] = useState<GroupMember | null>(null);
+  const [showBanDialog, setShowBanDialog] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
@@ -83,7 +101,7 @@ const ChatRoom = () => {
       try {
         const { data, error } = await supabase
           .from('group_members')
-          .select('*')
+          .select('*, is_admin')
           .eq('group_id', groupId)
           .eq('user_id', user.id)
           .single();
@@ -93,6 +111,9 @@ const ChatRoom = () => {
           navigate('/dashboard');
           return;
         }
+
+        // Set if the current user is a group admin
+        setIsGroupAdmin(!!data.is_admin);
         
         fetchGroup();
         fetchMessages();
@@ -251,9 +272,12 @@ const ChatRoom = () => {
         .from('group_members')
         .select(`
           user_id,
+          is_admin,
+          banned,
           profiles:user_id(
             name,
-            profile_pic
+            profile_pic,
+            account_status
           )
         `)
         .eq('group_id', groupId);
@@ -262,10 +286,12 @@ const ChatRoom = () => {
       
       if (data) {
         const typedMembers = data.map(member => {
-          const profileData = isValidProfile(member.profiles) ? member.profiles : null;
+          const profileData = member.profiles && typeof member.profiles === 'object' ? member.profiles : null;
           
           return {
             user_id: member.user_id,
+            is_admin: member.is_admin || false,
+            banned: member.banned || false,
             profiles: profileData
           };
         }) as GroupMember[];
@@ -372,6 +398,67 @@ const ChatRoom = () => {
       toast.error('Failed to leave the group');
     }
   };
+
+  const handleBanMember = async () => {
+    if (!memberToAction || !groupId) return;
+
+    try {
+      const { error } = await supabase
+        .from('group_members')
+        .update({ banned: true })
+        .eq('group_id', groupId)
+        .eq('user_id', memberToAction.user_id);
+
+      if (error) throw error;
+      
+      toast.success(`${memberToAction.profiles?.name || 'Member'} has been banned from the group`);
+      setShowBanDialog(false);
+      fetchMembers();
+    } catch (error) {
+      console.error('Error banning member:', error);
+      toast.error('Failed to ban member');
+    }
+  };
+
+  const handleRemoveBan = async (userId: string) => {
+    if (!groupId) return;
+
+    try {
+      const { error } = await supabase
+        .from('group_members')
+        .update({ banned: false })
+        .eq('group_id', groupId)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+      
+      toast.success('Ban has been removed');
+      fetchMembers();
+    } catch (error) {
+      console.error('Error removing ban:', error);
+      toast.error('Failed to remove ban');
+    }
+  };
+
+  const handleToggleAdmin = async (userId: string, isCurrentlyAdmin: boolean) => {
+    if (!groupId || !isGroupAdmin) return;
+
+    try {
+      const { error } = await supabase
+        .from('group_members')
+        .update({ is_admin: !isCurrentlyAdmin })
+        .eq('group_id', groupId)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+      
+      toast.success(`Admin status ${isCurrentlyAdmin ? 'removed' : 'granted'}`);
+      fetchMembers();
+    } catch (error) {
+      console.error('Error updating admin status:', error);
+      toast.error('Failed to update admin status');
+    }
+  };
   
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -390,12 +477,25 @@ const ChatRoom = () => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
+
+  // Check if user can perform admin actions on this message
+  const canModerateMessage = (messageUserId: string) => {
+    return isGroupAdmin || isAdmin || messageUserId === user?.id;
+  };
+
+  const canModerateUser = (userId: string, userIsAdmin: boolean) => {
+    // Site admins can moderate anyone
+    if (isAdmin) return true;
+    // Group admins can moderate non-admins
+    if (isGroupAdmin && !userIsAdmin) return true;
+    return false;
+  };
   
   return (
     <DashboardLayout>
       <div className="flex h-[calc(100vh-64px)]">
         {showMembers && (
-          <div className="w-64 border-r border-gray-200 bg-white p-4">
+          <div className="w-64 border-r border-gray-200 bg-white p-4 overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h2 className="font-bold">Group Members</h2>
               <Button 
@@ -409,17 +509,75 @@ const ChatRoom = () => {
             </div>
             <div className="space-y-2">
               {members.map((member) => (
-                <div key={member.user_id} className="flex items-center space-x-2">
-                  <Avatar className="h-8 w-8">
-                    {member.profiles?.profile_pic ? (
-                      <AvatarImage src={member.profiles.profile_pic} alt={member.profiles?.name || 'User'} />
-                    ) : (
-                      <AvatarFallback>
-                        {member.profiles?.name ? getInitials(member.profiles.name) : 'U'}
-                      </AvatarFallback>
-                    )}
-                  </Avatar>
-                  <span className="text-sm">{member.profiles?.name || 'Unknown User'}</span>
+                <div key={member.user_id} className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Avatar className="h-8 w-8">
+                      {member.profiles?.profile_pic ? (
+                        <AvatarImage src={member.profiles.profile_pic} alt={member.profiles?.name || 'User'} />
+                      ) : (
+                        <AvatarFallback>
+                          {member.profiles?.name ? getInitials(member.profiles.name) : 'U'}
+                        </AvatarFallback>
+                      )}
+                    </Avatar>
+                    <div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-sm">{member.profiles?.name || 'Unknown User'}</span>
+                        {member.is_admin && (
+                          <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                            Admin
+                          </Badge>
+                        )}
+                        {member.banned && (
+                          <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-200">
+                            Banned
+                          </Badge>
+                        )}
+                        {member.profiles?.account_status === 'admin' && (
+                          <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+                            Site Admin
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Show moderation options if user has permissions */}
+                  {canModerateUser(member.user_id, member.is_admin) && member.user_id !== user?.id && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {isGroupAdmin && (
+                          <DropdownMenuItem onClick={() => handleToggleAdmin(member.user_id, member.is_admin)}>
+                            <Shield className="mr-2 h-4 w-4" />
+                            {member.is_admin ? 'Remove Admin' : 'Make Admin'}
+                          </DropdownMenuItem>
+                        )}
+                        
+                        {member.banned ? (
+                          <DropdownMenuItem onClick={() => handleRemoveBan(member.user_id)}>
+                            <UserX className="mr-2 h-4 w-4" />
+                            Remove Ban
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem 
+                            onClick={() => {
+                              setMemberToAction(member);
+                              setShowBanDialog(true);
+                            }}
+                            className="text-red-500"
+                          >
+                            <UserX className="mr-2 h-4 w-4" />
+                            Ban From Group
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 </div>
               ))}
             </div>
@@ -552,7 +710,7 @@ const ChatRoom = () => {
                       </div>
                     </div>
                     
-                    {!msg.is_deleted && msg.user_id === user?.id && (
+                    {!msg.is_deleted && canModerateMessage(msg.user_id) && (
                       <div className="self-center ml-2">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -633,6 +791,27 @@ const ChatRoom = () => {
           </div>
         </div>
       </div>
+
+      {/* Ban Member Dialog */}
+      <Dialog open={showBanDialog} onOpenChange={setShowBanDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ban Member</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to ban {memberToAction?.profiles?.name || 'this member'} from the group?
+              They will not be able to send messages or see group content while banned.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBanDialog(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleBanMember}>
+              Ban Member
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 };

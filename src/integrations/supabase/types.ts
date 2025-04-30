@@ -11,20 +11,26 @@ export type Database = {
     Tables: {
       group_members: {
         Row: {
+          banned: boolean | null
           group_id: string
           id: string
+          is_admin: boolean | null
           joined_at: string
           user_id: string
         }
         Insert: {
+          banned?: boolean | null
           group_id: string
           id?: string
+          is_admin?: boolean | null
           joined_at?: string
           user_id: string
         }
         Update: {
+          banned?: boolean | null
           group_id?: string
           id?: string
+          is_admin?: boolean | null
           joined_at?: string
           user_id?: string
         }
@@ -129,6 +135,7 @@ export type Database = {
       profiles: {
         Row: {
           account_status: string
+          banned: boolean | null
           country: string | null
           date_joined: string
           dob: string | null
@@ -139,6 +146,7 @@ export type Database = {
         }
         Insert: {
           account_status?: string
+          banned?: boolean | null
           country?: string | null
           date_joined?: string
           dob?: string | null
@@ -149,6 +157,7 @@ export type Database = {
         }
         Update: {
           account_status?: string
+          banned?: boolean | null
           country?: string | null
           date_joined?: string
           dob?: string | null
