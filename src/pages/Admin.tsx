@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -14,7 +13,6 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle
 } from "@/components/ui/card";
@@ -110,37 +108,16 @@ const AdminPanel = () => {
         return;
       }
 
-      // Then fetch all auth users to get emails
-      const { data: authData, error: authError } = await supabase.auth.admin.listUsers();
+      // Since we can't use auth.admin.listUsers() from the client,
+      // we'll have to work with just the profiles data
+      const usersWithProfiles = profilesData.map(profile => ({
+        ...profile,
+        email: '', // We can't get emails from client side
+        // Cast account_status to the expected type
+        account_status: profile.account_status as 'normal' | 'admin' | 'verified'
+      }));
       
-      if (authError) {
-        console.error('Error fetching auth users:', authError);
-        // If we can't get auth data, just use the profiles with empty emails
-        const usersWithEmptyEmails = profilesData.map(profile => ({
-          ...profile,
-          email: '', // Default empty email
-          // Cast account_status to the expected type
-          account_status: profile.account_status as 'normal' | 'admin' | 'verified'
-        }));
-        setUsers(usersWithEmptyEmails as User[]);
-        return;
-      }
-
-      // Properly type the authData to avoid the error
-      const typedAuthData = authData as unknown as AuthResponse;
-      
-      // Merge the data from both sources
-      const usersWithEmails = profilesData.map(profile => {
-        const matchingAuthUser = typedAuthData?.users?.find(authUser => authUser.id === profile.id);
-        return {
-          ...profile,
-          email: matchingAuthUser?.email || '',
-          // Cast account_status to the expected type
-          account_status: profile.account_status as 'normal' | 'admin' | 'verified'
-        };
-      });
-      
-      setUsers(usersWithEmails as User[]);
+      setUsers(usersWithProfiles as User[]);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast.error('Failed to load users');
@@ -197,15 +174,29 @@ const AdminPanel = () => {
 
     try {
       setProcessingAction(true);
+      
+      // Update the user's account status
       const { error } = await supabase
         .from('profiles')
         .update({ account_status: 'verified' })
         .eq('id', selectedUser.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error:', error);
+        throw error;
+      }
 
       toast.success(`${selectedUser.name} has been verified`);
-      fetchUsers();
+      
+      // Update local state to reflect the change
+      setUsers(prevUsers => 
+        prevUsers.map(u => 
+          u.id === selectedUser.id 
+            ? { ...u, account_status: 'verified' as 'normal' | 'admin' | 'verified' } 
+            : u
+        )
+      );
+      
       setShowVerifyDialog(false);
     } catch (error) {
       console.error('Error verifying user:', error);
@@ -222,15 +213,28 @@ const AdminPanel = () => {
       setProcessingAction(true);
       const newBanStatus = !selectedUser.banned;
       
+      // Update the user's ban status
       const { error } = await supabase
         .from('profiles')
         .update({ banned: newBanStatus })
         .eq('id', selectedUser.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error:', error);
+        throw error;
+      }
 
       toast.success(`${selectedUser.name} has been ${newBanStatus ? 'banned' : 'unbanned'}`);
-      fetchUsers();
+      
+      // Update local state to reflect the change
+      setUsers(prevUsers => 
+        prevUsers.map(u => 
+          u.id === selectedUser.id 
+            ? { ...u, banned: newBanStatus } 
+            : u
+        )
+      );
+      
       setShowBanUserDialog(false);
     } catch (error) {
       console.error('Error updating user ban status:', error);
@@ -252,7 +256,10 @@ const AdminPanel = () => {
         .delete()
         .eq('group_id', selectedGroup.id);
 
-      if (membersError) throw membersError;
+      if (membersError) {
+        console.error('Error deleting group members:', membersError);
+        throw membersError;
+      }
 
       // Then delete all messages
       const { error: messagesError } = await supabase
@@ -260,7 +267,10 @@ const AdminPanel = () => {
         .delete()
         .eq('group_id', selectedGroup.id);
 
-      if (messagesError) throw messagesError;
+      if (messagesError) {
+        console.error('Error deleting group messages:', messagesError);
+        throw messagesError;
+      }
 
       // Finally delete the group
       const { error: groupError } = await supabase
@@ -268,14 +278,21 @@ const AdminPanel = () => {
         .delete()
         .eq('id', selectedGroup.id);
 
-      if (groupError) throw groupError;
+      if (groupError) {
+        console.error('Error deleting group:', groupError);
+        throw groupError;
+      }
+
+      // Update local state to reflect the change
+      setGroups(prevGroups => 
+        prevGroups.filter(g => g.id !== selectedGroup.id)
+      );
 
       toast.success(`Group "${selectedGroup.name}" has been deleted`);
-      fetchGroups();
       setShowDeleteGroupDialog(false);
     } catch (error) {
       console.error('Error deleting group:', error);
-      toast.error('Failed to delete group');
+      toast.error('Failed to delete group. Make sure you have proper permissions.');
     } finally {
       setProcessingAction(false);
     }
