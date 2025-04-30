@@ -86,13 +86,44 @@ const AdminPanel = () => {
   const fetchUsers = async () => {
     try {
       setLoadingData(true);
-      const { data, error } = await supabase
+      
+      // Fetch profiles first
+      const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('*')
         .order('date_joined', { ascending: false });
 
-      if (error) throw error;
-      setUsers(data || []);
+      if (profilesError) throw profilesError;
+      
+      if (!profilesData) {
+        setUsers([]);
+        return;
+      }
+
+      // Then fetch all auth users to get emails
+      const { data: authData, error: authError } = await supabase.auth.admin.listUsers();
+      
+      if (authError) {
+        console.error('Error fetching auth users:', authError);
+        // If we can't get auth data, just use the profiles with empty emails
+        const usersWithEmptyEmails = profilesData.map(profile => ({
+          ...profile,
+          email: '' // Default empty email
+        }));
+        setUsers(usersWithEmptyEmails);
+        return;
+      }
+
+      // Merge the data from both sources
+      const usersWithEmails = profilesData.map(profile => {
+        const matchingAuthUser = authData?.users?.find(authUser => authUser.id === profile.id);
+        return {
+          ...profile,
+          email: matchingAuthUser?.email || ''
+        };
+      });
+      
+      setUsers(usersWithEmails);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast.error('Failed to load users');
