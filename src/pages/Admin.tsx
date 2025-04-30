@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -59,6 +60,16 @@ interface Group {
   member_count: number;
 }
 
+// Define AuthUser interface to handle the response from auth.admin.listUsers()
+interface AuthUser {
+  id: string;
+  email?: string;
+}
+
+interface AuthResponse {
+  users?: AuthUser[];
+}
+
 const AdminPanel = () => {
   const { isAdmin, user, loading } = useAuth();
   const navigate = useNavigate();
@@ -115,9 +126,12 @@ const AdminPanel = () => {
         return;
       }
 
+      // Properly type the authData to avoid the error
+      const typedAuthData = authData as unknown as AuthResponse;
+      
       // Merge the data from both sources
       const usersWithEmails = profilesData.map(profile => {
-        const matchingAuthUser = authData?.users?.find(authUser => authUser.id === profile.id);
+        const matchingAuthUser = typedAuthData?.users?.find(authUser => authUser.id === profile.id);
         return {
           ...profile,
           email: matchingAuthUser?.email || '',
