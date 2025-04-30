@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -108,9 +107,11 @@ const AdminPanel = () => {
         // If we can't get auth data, just use the profiles with empty emails
         const usersWithEmptyEmails = profilesData.map(profile => ({
           ...profile,
-          email: '' // Default empty email
+          email: '', // Default empty email
+          // Cast account_status to the expected type
+          account_status: profile.account_status as 'normal' | 'admin' | 'verified'
         }));
-        setUsers(usersWithEmptyEmails);
+        setUsers(usersWithEmptyEmails as User[]);
         return;
       }
 
@@ -119,11 +120,13 @@ const AdminPanel = () => {
         const matchingAuthUser = authData?.users?.find(authUser => authUser.id === profile.id);
         return {
           ...profile,
-          email: matchingAuthUser?.email || ''
+          email: matchingAuthUser?.email || '',
+          // Cast account_status to the expected type
+          account_status: profile.account_status as 'normal' | 'admin' | 'verified'
         };
       });
       
-      setUsers(usersWithEmails);
+      setUsers(usersWithEmails as User[]);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast.error('Failed to load users');
