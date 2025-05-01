@@ -1,180 +1,315 @@
 
-import { useState } from 'react';
+import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { 
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from '@/components/ui/avatar';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuTrigger
+  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Badge } from '@/components/ui/badge';
-import { LogOut, Settings, User, MessageSquare, Menu, X, Shield } from 'lucide-react';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { Sidebar } from '@/components/ui/sidebar';
+import { useMobileBreakpoint } from '@/hooks/use-mobile';
+import {
+  User,
+  Home,
+  Settings,
+  Search,
+  LogOut,
+  ShieldCheck,
+  Menu,
+  MessageSquare,
+  Video
+} from 'lucide-react';
+import { toast } from 'sonner';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
+  noPadding?: boolean;
 }
 
-export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
-  const { profile, signOut, isAdmin } = useAuth();
+export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
+  children,
+  noPadding = false,
+}) => {
+  const { user, profile, isAdmin, signOut } = useAuth();
+  const isMobile = useMobileBreakpoint();
   const navigate = useNavigate();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map(n => n[0])
-      .join('')
-      .toUpperCase()
-      .substring(0, 2);
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      navigate('/');
+      toast.success('Signed out successfully');
+    } catch (error) {
+      toast.error('Failed to sign out');
+    }
   };
 
-  const menuItems = [
-    { label: 'Dashboard', path: '/dashboard', icon: <MessageSquare className="h-5 w-5" /> },
-    { label: 'Profile', path: '/profile', icon: <User className="h-5 w-5" /> },
-    { label: 'Settings', path: '/settings', icon: <Settings className="h-5 w-5" /> },
+  const navItems = [
+    {
+      label: 'Dashboard',
+      href: '/dashboard',
+      icon: <Home className="mr-2 h-4 w-4" />,
+    },
+    {
+      label: 'Explore',
+      href: '/explore',
+      icon: <Search className="mr-2 h-4 w-4" />,
+    },
+    {
+      label: 'Video Call',
+      href: '/video-call',
+      icon: <Video className="mr-2 h-4 w-4" />,
+      highlight: true,
+    },
+    {
+      label: 'Profile',
+      href: '/profile',
+      icon: <User className="mr-2 h-4 w-4" />,
+    },
+    {
+      label: 'Settings',
+      href: '/settings',
+      icon: <Settings className="mr-2 h-4 w-4" />,
+    },
   ];
-  
-  // Add admin panel link for site admins
+
   if (isAdmin) {
-    menuItems.push({ 
-      label: 'Admin Panel', 
-      path: '/admin', 
-      icon: <Shield className="h-5 w-5" /> 
+    navItems.push({
+      label: 'Admin Panel',
+      href: '/admin',
+      icon: <ShieldCheck className="mr-2 h-4 w-4" />,
     });
   }
 
+  const navigationLinks = (
+    <div className="space-y-1">
+      {navItems.map((item) => (
+        <Link
+          key={item.href}
+          to={item.href}
+          className={`flex items-center px-3 py-2 text-sm rounded-md transition-colors
+            ${item.highlight 
+              ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700'
+              : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+        >
+          {item.icon}
+          {item.label}
+        </Link>
+      ))}
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Top navigation */}
-      <header className="bg-white shadow-sm">
-        <div className="container mx-auto px-4">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <Link to="/dashboard" className="flex items-center">
+    <div className="flex h-screen bg-white dark:bg-gray-950">
+      {/* Sidebar for desktop */}
+      {!isMobile && (
+        <div className="hidden md:flex md:w-64 md:flex-col border-r dark:border-gray-800">
+          <div className="flex flex-col flex-grow pt-5 overflow-y-auto">
+            <div className="flex items-center justify-center h-16">
+              <Link to="/dashboard" className="flex items-center gap-2">
                 <img 
                   src="https://cdn.glitch.global/379d6b26-1c93-4dc3-b34f-29fe75cab18e/favicon1.png?v=1716545083192" 
                   alt="Connectiverse" 
-                  className="h-8 w-8 mr-2"
+                  className="h-8 w-8" 
                 />
-                <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600">
+                <span className="text-lg font-semibold dark:text-white">
                   Connectiverse
                 </span>
               </Link>
             </div>
-            
-            {/* Desktop navigation */}
-            <nav className="hidden md:flex items-center space-x-4">
-              {menuItems.map((item) => (
-                <Link 
-                  key={item.path}
-                  to={item.path}
-                  className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100 flex items-center"
-                >
-                  {item.icon}
-                  <span className="ml-2">{item.label}</span>
-                </Link>
-              ))}
-            </nav>
-            
-            <div className="flex items-center">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="rounded-full" size="icon">
-                    <Avatar>
-                      {profile?.profile_pic && (
-                        <AvatarImage src={profile.profile_pic} alt={profile?.name || 'User'} />
-                      )}
-                      <AvatarFallback>
-                        {profile?.name ? getInitials(profile.name) : 'U'}
-                      </AvatarFallback>
-                    </Avatar>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <div className="px-2 py-1.5">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium">{profile?.name}</p>
-                      {profile?.account_status === 'admin' && (
-                        <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
-                          Admin
-                        </Badge>
-                      )}
-                      {profile?.account_status === 'verified' && (
-                        <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
-                          ✓ Verified
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-500 truncate">
-                      {profile?.account_status}
-                    </p>
-                  </div>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => navigate('/profile')}>
-                    <User className="mr-2 h-4 w-4" />
-                    <span>Profile</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/settings')}>
-                    <Settings className="mr-2 h-4 w-4" />
-                    <span>Settings</span>
-                  </DropdownMenuItem>
-                  {isAdmin && (
-                    <DropdownMenuItem onClick={() => navigate('/admin')}>
-                      <Shield className="mr-2 h-4 w-4" />
-                      <span>Admin Panel</span>
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={signOut}>
-                    <LogOut className="mr-2 h-4 w-4" />
-                    <span>Log out</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              
-              {/* Mobile menu button */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="md:hidden ml-2"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              >
-                {mobileMenuOpen ? (
-                  <X className="h-6 w-6" />
-                ) : (
-                  <Menu className="h-6 w-6" />
-                )}
-              </Button>
+            <div className="mt-5 flex-1 px-3">
+              {navigationLinks}
+            </div>
+            <div className="p-4 border-t dark:border-gray-800">
+              <div className="flex items-center justify-between">
+                <ThemeToggle />
+                <Button variant="ghost" size="sm" onClick={handleSignOut}>
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Sign out
+                </Button>
+              </div>
             </div>
           </div>
         </div>
-      </header>
-      
-      {/* Mobile menu */}
-      {mobileMenuOpen && (
-        <div className="md:hidden bg-white border-b shadow-sm">
-          <div className="container mx-auto px-4 py-2 space-y-1">
-            {menuItems.map((item) => (
-              <Link 
-                key={item.path}
-                to={item.path}
-                className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-100 flex items-center"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                {item.icon}
-                <span className="ml-2">{item.label}</span>
-              </Link>
-            ))}
-          </div>
-        </div>
       )}
-      
+
+      {/* Mobile sidebar */}
+      {isMobile && (
+        <Sidebar>
+          <div className="flex flex-col h-full">
+            <div className="flex items-center justify-center h-16 border-b dark:border-gray-800">
+              <Link to="/dashboard" className="flex items-center gap-2">
+                <img 
+                  src="https://cdn.glitch.global/379d6b26-1c93-4dc3-b34f-29fe75cab18e/favicon1.png?v=1716545083192" 
+                  alt="Connectiverse" 
+                  className="h-8 w-8" 
+                />
+                <span className="text-lg font-semibold dark:text-white">
+                  Connectiverse
+                </span>
+              </Link>
+            </div>
+            <div className="mt-5 flex-1 px-3">
+              {navigationLinks}
+            </div>
+            <div className="p-4 border-t dark:border-gray-800">
+              <div className="flex items-center justify-between">
+                <ThemeToggle />
+                <Button variant="ghost" size="sm" onClick={handleSignOut}>
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Sign out
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Sidebar>
+      )}
+
       {/* Main content */}
-      <main>{children}</main>
+      <div className="flex flex-col flex-1 overflow-hidden">
+        {/* Top navbar for mobile */}
+        {isMobile && (
+          <header className="border-b py-3 px-4 flex items-center justify-between dark:border-gray-800">
+            <div className="flex items-center">
+              <Sidebar.Trigger asChild>
+                <Button variant="ghost" size="sm">
+                  <Menu className="h-5 w-5" />
+                  <span className="sr-only">Toggle sidebar</span>
+                </Button>
+              </Sidebar.Trigger>
+              <Link to="/dashboard" className="ml-2 flex items-center gap-2">
+                <img 
+                  src="https://cdn.glitch.global/379d6b26-1c93-4dc3-b34f-29fe75cab18e/favicon1.png?v=1716545083192" 
+                  alt="Connectiverse" 
+                  className="h-6 w-6" 
+                />
+                <span className="font-semibold text-sm dark:text-white">
+                  Connectiverse
+                </span>
+              </Link>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="rounded-full">
+                    <Avatar className="h-8 w-8">
+                      {profile?.profile_pic ? (
+                        <AvatarImage src={profile.profile_pic} />
+                      ) : (
+                        <AvatarFallback>
+                          {profile?.name?.charAt(0) || 'U'}
+                        </AvatarFallback>
+                      )}
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>
+                    {profile?.name || 'User'}
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => navigate('/profile')}>
+                    <User className="mr-2 h-4 w-4" />
+                    Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/video-call')}>
+                    <Video className="mr-2 h-4 w-4" />
+                    Video Call
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/settings')}>
+                    <Settings className="mr-2 h-4 w-4" />
+                    Settings
+                  </DropdownMenuItem>
+                  {isAdmin && (
+                    <DropdownMenuItem onClick={() => navigate('/admin')}>
+                      <ShieldCheck className="mr-2 h-4 w-4" />
+                      Admin Panel
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleSignOut}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </header>
+        )}
+
+        {/* Top navbar for desktop */}
+        {!isMobile && (
+          <header className="border-b py-3 px-4 flex items-center justify-end dark:border-gray-800">
+            <div className="flex items-center gap-2">
+              <Link to="/dashboard" className="px-3 py-2 text-sm rounded-md">
+                <MessageSquare className="h-5 w-5" />
+              </Link>
+              
+              <Link to="/video-call" className="px-3 py-2 text-sm rounded-md">
+                <Video className="h-5 w-5" />
+              </Link>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="rounded-full">
+                    <Avatar className="h-8 w-8">
+                      {profile?.profile_pic ? (
+                        <AvatarImage src={profile.profile_pic} />
+                      ) : (
+                        <AvatarFallback>
+                          {profile?.name?.charAt(0) || 'U'}
+                        </AvatarFallback>
+                      )}
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>
+                    {profile?.name || 'User'}
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => navigate('/profile')}>
+                    <User className="mr-2 h-4 w-4" />
+                    Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/settings')}>
+                    <Settings className="mr-2 h-4 w-4" />
+                    Settings
+                  </DropdownMenuItem>
+                  {isAdmin && (
+                    <DropdownMenuItem onClick={() => navigate('/admin')}>
+                      <ShieldCheck className="mr-2 h-4 w-4" />
+                      Admin Panel
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleSignOut}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </header>
+        )}
+        
+        <main className={`flex-1 overflow-auto ${noPadding ? '' : 'p-6'}`}>
+          {children}
+        </main>
+      </div>
     </div>
   );
 };
