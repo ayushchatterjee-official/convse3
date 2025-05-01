@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { DashboardLayout } from '@/components/layouts/DashboardLayout';
@@ -17,11 +17,12 @@ import {
 } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
-import { CalendarIcon, Loader2 } from 'lucide-react';
+import { CalendarIcon, Loader2, Upload, X } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { uploadFile } from '@/lib/fileUpload';
 
 const Profile = () => {
   const { user, profile, signIn, deleteAccount, updateProfile, loading } = useAuth();
@@ -37,6 +38,10 @@ const Profile = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showImageUpload, setShowImageUpload] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   useEffect(() => {
     if (!loading && !user) {
@@ -72,7 +77,6 @@ const Profile = () => {
       if (dob) {
         const birthDate = new Date(dob);
         const today = new Date();
-        // Changed from const to let so we can modify it
         let age = today.getFullYear() - birthDate.getFullYear();
         const monthDiff = today.getMonth() - birthDate.getMonth();
         
@@ -144,6 +148,42 @@ const Profile = () => {
       .substring(0, 2);
   };
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || !e.target.files[0] || !user) return;
+    
+    const file = e.target.files[0];
+    
+    // Create a preview
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setPreviewImage(event.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+    
+    try {
+      const fileUrl = await uploadFile(file, 'user_files', user.id);
+      
+      if (fileUrl) {
+        setProfilePic(fileUrl);
+        setShowImageUpload(false);
+      }
+    } catch (error) {
+      console.error('Error uploading profile picture:', error);
+      toast.error('Failed to upload profile picture');
+    }
+  };
+  
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
+  };
+
+  const clearPreviewImage = () => {
+    setPreviewImage(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="container mx-auto px-4 py-8">
@@ -157,15 +197,27 @@ const Profile = () => {
             <CardContent className="space-y-6">
               <div className="flex flex-col md:flex-row gap-6">
                 <div className="flex flex-col items-center space-y-2">
-                  <Avatar className="w-32 h-32">
-                    {profilePic ? (
+                  <Avatar className="w-32 h-32 cursor-pointer relative group" onClick={() => setShowImageUpload(true)}>
+                    {previewImage ? (
+                      <AvatarImage src={previewImage} alt={name} />
+                    ) : profilePic ? (
                       <AvatarImage src={profilePic} alt={name} />
                     ) : (
                       <AvatarFallback className="text-2xl">
                         {name ? getInitials(name) : 'U'}
                       </AvatarFallback>
                     )}
+                    <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
+                      <Upload className="h-8 w-8 text-white" />
+                    </div>
                   </Avatar>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setShowImageUpload(true)}
+                  >
+                    Change Photo
+                  </Button>
                 </div>
                 
                 <div className="space-y-4 flex-1">
@@ -177,7 +229,7 @@ const Profile = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Account Status</Label>
-                      <div className="flex items-center h-10 px-3 border rounded-md bg-gray-50">
+                      <div className="flex items-center h-10 px-3 border rounded-md bg-gray-50 dark:bg-gray-800">
                         <span className="font-medium">
                           {profile?.account_status === 'admin' && '👑 '}
                           {profile?.account_status === 'verified' && '✓ '}
@@ -188,7 +240,7 @@ const Profile = () => {
                     
                     <div className="space-y-2">
                       <Label>Member Since</Label>
-                      <div className="flex items-center h-10 px-3 border rounded-md bg-gray-50">
+                      <div className="flex items-center h-10 px-3 border rounded-md bg-gray-50 dark:bg-gray-800">
                         <span>
                           {profile?.date_joined ? formatDate(profile.date_joined) : 'N/A'}
                         </span>
@@ -205,16 +257,6 @@ const Profile = () => {
                     id="name" 
                     value={name} 
                     onChange={(e) => setName(e.target.value)} 
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="profile-pic">Profile Picture URL</Label>
-                  <Input 
-                    id="profile-pic" 
-                    value={profilePic} 
-                    onChange={(e) => setProfilePic(e.target.value)} 
-                    placeholder="https://example.com/image.jpg"
                   />
                 </div>
                 
@@ -247,7 +289,7 @@ const Profile = () => {
                   <Button 
                     onClick={handleUpdateProfile} 
                     disabled={isUpdating}
-                    className="bg-blue-600 hover:bg-blue-700"
+                    className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800"
                   >
                     {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Save Changes
@@ -257,13 +299,13 @@ const Profile = () => {
             </CardContent>
           </Card>
           
-          <Card className="border-red-200">
+          <Card className="border-red-200 dark:border-red-900">
             <CardHeader>
-              <CardTitle className="text-red-600">Danger Zone</CardTitle>
+              <CardTitle className="text-red-600 dark:text-red-400">Danger Zone</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <p className="text-gray-600">
+                <p className="text-gray-600 dark:text-gray-400">
                   Permanently delete your account and all associated data. This action cannot be undone.
                 </p>
                 <Button 
@@ -278,11 +320,73 @@ const Profile = () => {
         </div>
       </div>
       
+      {/* Image Upload Dialog */}
+      <Dialog open={showImageUpload} onOpenChange={setShowImageUpload}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Upload Profile Picture</DialogTitle>
+            <DialogDescription>
+              Choose an image file to use as your profile picture.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+            />
+            
+            {previewImage ? (
+              <div className="relative w-full h-64 mx-auto">
+                <img
+                  src={previewImage}
+                  alt="Preview"
+                  className="w-full h-full object-contain rounded-md"
+                />
+                <Button 
+                  variant="destructive" 
+                  size="icon"
+                  className="absolute top-2 right-2 h-8 w-8"
+                  onClick={clearPreviewImage}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div 
+                onClick={triggerFileInput}
+                className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center cursor-pointer hover:border-gray-400 transition-colors"
+              >
+                <Upload className="mx-auto h-12 w-12 text-gray-400" />
+                <p className="mt-2 text-sm text-gray-500">Click to select a file</p>
+                <p className="mt-1 text-xs text-gray-400">JPG, PNG, GIF</p>
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowImageUpload(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={triggerFileInput}
+              className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800"
+              disabled={!!previewImage}
+            >
+              Select Image
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
       {/* Delete Account Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="text-red-600">Delete Your Account</DialogTitle>
+            <DialogTitle className="text-red-600 dark:text-red-400">Delete Your Account</DialogTitle>
             <DialogDescription>
               This will permanently delete your account and all your data. This action cannot be undone.
             </DialogDescription>

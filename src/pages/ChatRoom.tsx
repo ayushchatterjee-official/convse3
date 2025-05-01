@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -22,6 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from 'sonner';
+import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import { 
   Send, 
   MoreVertical, 
@@ -31,9 +33,14 @@ import {
   ArrowLeft,
   Users,
   Shield,
-  UserX
+  UserX,
+  Video,
+  SmilePlus,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getFileType, uploadFile } from '@/lib/fileUpload';
 
 interface MessageProfile {
   name: string;
@@ -89,7 +96,15 @@ const ChatRoom = () => {
   const [isGroupAdmin, setIsGroupAdmin] = useState(false);
   const [memberToAction, setMemberToAction] = useState<GroupMember | null>(null);
   const [showBanDialog, setShowBanDialog] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [filePreview, setFilePreview] = useState<string | null>(null);
+  const [fileType, setFileType] = useState<string>('');
+  const [showFilePreview, setShowFilePreview] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const documentInputRef = useRef<HTMLInputElement>(null);
   
   useEffect(() => {
     if (!user || !groupId) {
@@ -303,22 +318,56 @@ const ChatRoom = () => {
     }
   };
   
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSendMessage = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     
-    if (!message.trim() || !user || !groupId) return;
+    if ((!message.trim() && !selectedFile) || !user || !groupId) return;
     
     try {
-      const { error } = await supabase
-        .from('messages')
-        .insert({
+      if (selectedFile) {
+        // Handle file upload
+        const contentType = getFileType(selectedFile); 
+        const folderPath = `${user.id}/${groupId}`;
+        const fileUrl = await uploadFile(selectedFile, 'user_files', folderPath);
+        
+        if (!fileUrl) {
+          toast.error('Failed to upload file');
+          return;
+        }
+        
+        // Insert message with file
+        await supabase.from('messages').insert({
           group_id: groupId,
           user_id: user.id,
-          content: message,
-          content_type: 'text'
+          content: selectedFile.name,
+          content_type: contentType,
+          file_url: fileUrl
         });
+        
+        // Reset file state
+        setSelectedFile(null);
+        setFilePreview(null);
+        setShowFilePreview(false);
+        
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        if (videoInputRef.current) videoInputRef.current.value = '';
+        if (documentInputRef.current) documentInputRef.current.value = '';
+      }
       
-      if (error) throw error;
+      if (message.trim()) {
+        // Send text message
+        const { error } = await supabase
+          .from('messages')
+          .insert({
+            group_id: groupId,
+            user_id: user.id,
+            content: message,
+            content_type: 'text'
+          });
+        
+        if (error) throw error;
+      }
+      
       setMessage('');
     } catch (error) {
       console.error('Error sending message:', error);
@@ -326,40 +375,34 @@ const ChatRoom = () => {
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'file') => {
-    if (!e.target.files || !e.target.files[0] || !user || !groupId) return;
-
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'video' | 'file') => {
+    if (!e.target.files || !e.target.files[0]) return;
+    
     const file = e.target.files[0];
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Math.random()}.${fileExt}`;
-    const filePath = `${groupId}/${fileName}`;
-
-    try {
-      const { error: uploadError, data } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
-
-      const { error: messageError } = await supabase
-        .from('messages')
-        .insert({
-          group_id: groupId,
-          user_id: user.id,
-          content: file.name,
-          content_type: type,
-          file_url: publicUrl
-        });
-
-      if (messageError) throw messageError;
-    } catch (error) {
-      console.error('Error uploading file:', error);
-      toast.error('Failed to upload file');
+    setSelectedFile(file);
+    setFileType(type);
+    
+    // Create preview for images and videos
+    if (type === 'image' || type === 'video') {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setFilePreview(event.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setFilePreview(null);
     }
+    
+    setShowFilePreview(true);
+  };
+
+  const cancelFileUpload = () => {
+    setSelectedFile(null);
+    setFilePreview(null);
+    setShowFilePreview(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (videoInputRef.current) videoInputRef.current.value = '';
+    if (documentInputRef.current) documentInputRef.current.value = '';
   };
 
   const handleDeleteMessage = async (messageId: string) => {
@@ -459,6 +502,11 @@ const ChatRoom = () => {
       toast.error('Failed to update admin status');
     }
   };
+
+  const onEmojiClick = (emojiData: EmojiClickData) => {
+    setMessage(prevMessage => prevMessage + emojiData.emoji);
+    setShowEmojiPicker(false);
+  };
   
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -491,11 +539,106 @@ const ChatRoom = () => {
     return false;
   };
   
+  const renderFilePreview = (msg: Message) => {
+    if (msg.content_type === 'image' && msg.file_url) {
+      return (
+        <div className="space-y-1">
+          <img src={msg.file_url} alt="Image" className="max-w-full rounded" />
+          {msg.content && <p>{msg.content}</p>}
+        </div>
+      );
+    } else if (msg.content_type === 'video' && msg.file_url) {
+      return (
+        <div className="space-y-1">
+          <video controls className="max-w-full rounded">
+            <source src={msg.file_url} type="video/mp4" />
+            Your browser does not support the video tag.
+          </video>
+          {msg.content && <p>{msg.content}</p>}
+        </div>
+      );
+    } else if (msg.content_type === 'file' && msg.file_url) {
+      return (
+        <div className="flex items-center">
+          <File className="mr-2 h-4 w-4" />
+          <a href={msg.file_url} target="_blank" rel="noreferrer" className="underline">
+            {msg.content || 'File'}
+          </a>
+        </div>
+      );
+    } else {
+      return msg.content;
+    }
+  };
+
+  const renderCurrentFilePreview = () => {
+    if (!selectedFile || !showFilePreview) return null;
+    
+    if (fileType === 'image' && filePreview) {
+      return (
+        <div className="relative mb-2 border rounded p-2 bg-gray-50 dark:bg-gray-800">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute right-1 top-1 h-6 w-6 rounded-full bg-gray-800/60 hover:bg-gray-800/80 text-white"
+            onClick={cancelFileUpload}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+          <img src={filePreview} alt="Preview" className="max-h-40 mx-auto" />
+          <p className="text-xs text-center mt-1 truncate">{selectedFile.name}</p>
+        </div>
+      );
+    } else if (fileType === 'video' && filePreview) {
+      return (
+        <div className="relative mb-2 border rounded p-2 bg-gray-50 dark:bg-gray-800">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute right-1 top-1 h-6 w-6 rounded-full bg-gray-800/60 hover:bg-gray-800/80 text-white"
+            onClick={cancelFileUpload}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+          <video controls className="max-h-40 mx-auto">
+            <source src={filePreview} />
+            Your browser does not support the video tag.
+          </video>
+          <p className="text-xs text-center mt-1 truncate">{selectedFile.name}</p>
+        </div>
+      );
+    } else if (fileType === 'file') {
+      return (
+        <div className="relative mb-2 border rounded p-2 bg-gray-50 dark:bg-gray-800">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute right-1 top-1 h-6 w-6 rounded-full bg-gray-800/60 hover:bg-gray-800/80 text-white"
+            onClick={cancelFileUpload}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+          <div className="flex items-center justify-center gap-2">
+            <File className="h-10 w-10 text-blue-600" />
+            <div>
+              <p className="text-sm font-medium truncate">{selectedFile.name}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    return null;
+  };
+  
   return (
     <DashboardLayout>
       <div className="flex h-[calc(100vh-64px)]">
         {showMembers && (
-          <div className="w-64 border-r border-gray-200 bg-white p-4 overflow-y-auto">
+          <div className="w-64 border-r border-gray-200 bg-white dark:bg-gray-800 dark:border-gray-700 p-4 overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h2 className="font-bold">Group Members</h2>
               <Button 
@@ -524,17 +667,17 @@ const ChatRoom = () => {
                       <div className="flex items-center gap-1">
                         <span className="text-sm">{member.profiles?.name || 'Unknown User'}</span>
                         {member.is_admin && (
-                          <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                          <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900 dark:text-blue-300 dark:border-blue-800">
                             Admin
                           </Badge>
                         )}
                         {member.banned && (
-                          <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-200">
+                          <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-200 dark:bg-red-900 dark:text-red-300 dark:border-red-800">
                             Banned
                           </Badge>
                         )}
                         {member.profiles?.account_status === 'admin' && (
-                          <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+                          <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900 dark:text-purple-300 dark:border-purple-800">
                             Site Admin
                           </Badge>
                         )}
@@ -569,7 +712,7 @@ const ChatRoom = () => {
                               setMemberToAction(member);
                               setShowBanDialog(true);
                             }}
-                            className="text-red-500"
+                            className="text-red-500 dark:text-red-400"
                           >
                             <UserX className="mr-2 h-4 w-4" />
                             Ban From Group
@@ -585,7 +728,7 @@ const ChatRoom = () => {
         )}
         
         <div className="flex flex-col w-full">
-          <div className="border-b p-4 flex items-center justify-between bg-white">
+          <div className="border-b p-4 flex items-center justify-between bg-white dark:bg-gray-800 dark:border-gray-700">
             <div className="flex items-center">
               <Button 
                 variant="ghost" 
@@ -606,7 +749,7 @@ const ChatRoom = () => {
               
               <div>
                 <h2 className="font-bold">{group?.name}</h2>
-                <p className="text-xs text-gray-500">{members.length} members</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{members.length} members</p>
               </div>
             </div>
             
@@ -629,7 +772,7 @@ const ChatRoom = () => {
                   <DropdownMenuItem onClick={() => setShowMembers(!showMembers)}>
                     View Members
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleLeaveGroup} className="text-red-500">
+                  <DropdownMenuItem onClick={handleLeaveGroup} className="text-red-500 dark:text-red-400">
                     Leave Group
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -637,13 +780,13 @@ const ChatRoom = () => {
             </div>
           </div>
           
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-900">
             {loading ? (
               <div className="flex justify-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
               </div>
             ) : messages.length === 0 ? (
-              <div className="text-center text-gray-500 py-8">
+              <div className="text-center text-gray-500 dark:text-gray-400 py-8">
                 <p>No messages yet. Start the conversation!</p>
               </div>
             ) : (
@@ -668,41 +811,25 @@ const ChatRoom = () => {
                     <div>
                       <div className="flex items-end space-x-1">
                         {msg.user_id !== user?.id && (
-                          <span className="text-xs text-gray-500 mb-1">{msg.profiles?.name || 'Unknown User'}</span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400 mb-1">{msg.profiles?.name || 'Unknown User'}</span>
                         )}
                       </div>
                       
                       <div 
                         className={`rounded-lg px-4 py-2 ${
                           msg.user_id === user?.id
-                            ? 'bg-blue-500 text-white'
-                            : 'bg-white text-gray-800 border'
-                        } ${msg.is_deleted ? 'bg-gray-100 italic' : ''}`}
+                            ? 'bg-blue-500 text-white dark:bg-blue-600'
+                            : 'bg-white text-gray-800 border dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700'
+                        } ${msg.is_deleted ? 'bg-gray-100 italic dark:bg-gray-700' : ''}`}
                       >
                         {msg.is_deleted ? (
-                          <span className="text-gray-500">
+                          <span className="text-gray-500 dark:text-gray-400">
                             {msg.deleted_by === msg.user_id
                               ? 'This message was deleted'
                               : `${msg.profiles?.name || 'User'} deleted this message`
                             }
                           </span>
-                        ) : msg.content_type === 'text' ? (
-                          msg.content
-                        ) : msg.content_type === 'image' ? (
-                          <div className="space-y-1">
-                            <img src={msg.file_url || ''} alt="Image" className="max-w-full rounded" />
-                            {msg.content && <p>{msg.content}</p>}
-                          </div>
-                        ) : msg.content_type === 'file' ? (
-                          <div className="flex items-center">
-                            <File className="mr-2 h-4 w-4" />
-                            <a href={msg.file_url || '#'} target="_blank" rel="noreferrer" className="underline">
-                              {msg.content || 'File'}
-                            </a>
-                          </div>
-                        ) : (
-                          msg.content
-                        )}
+                        ) : renderFilePreview(msg)}
                         
                         <div className="text-xs mt-1 text-right">
                           {formatTimestamp(msg.created_at)}
@@ -734,48 +861,71 @@ const ChatRoom = () => {
             <div ref={messagesEndRef} />
           </div>
           
-          <div className="border-t p-4 bg-white">
+          <div className="border-t p-4 bg-white dark:bg-gray-800 dark:border-gray-700">
+            {renderCurrentFilePreview()}
+            
             <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
-              <input
-                type="file"
-                id="image-upload"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => handleFileUpload(e, 'image')}
-              />
-              <label 
-                htmlFor="image-upload" 
-                className="cursor-pointer"
-              >
-                <Button 
-                  type="button" 
-                  variant="ghost" 
-                  size="icon"
-                  className="shrink-0"
-                >
-                  <Image className="h-5 w-5" />
-                </Button>
-              </label>
+              <Popover open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
+                <PopoverTrigger asChild>
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    size="icon"
+                    className="shrink-0"
+                  >
+                    <SmilePlus className="h-5 w-5" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0" align="start" side="top">
+                  <EmojiPicker onEmojiClick={onEmojiClick} lazyLoadEmojis={true} />
+                </PopoverContent>
+              </Popover>
 
-              <input
-                type="file"
-                id="file-upload"
-                className="hidden"
-                onChange={(e) => handleFileUpload(e, 'file')}
-              />
-              <label 
-                htmlFor="file-upload" 
-                className="cursor-pointer"
-              >
-                <Button 
-                  type="button" 
-                  variant="ghost" 
-                  size="icon"
-                  className="shrink-0"
-                >
-                  <File className="h-5 w-5" />
-                </Button>
-              </label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button type="button" variant="ghost" size="icon" className="shrink-0">
+                    <Image className="h-5 w-5" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-60" align="start">
+                  <Tabs defaultValue="photos">
+                    <TabsList className="grid grid-cols-3 mb-2">
+                      <TabsTrigger value="photos">Photos</TabsTrigger>
+                      <TabsTrigger value="videos">Videos</TabsTrigger>
+                      <TabsTrigger value="files">Files</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="photos" className="space-y-2">
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Upload an image</p>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        ref={fileInputRef}
+                        onChange={(e) => handleFileSelect(e, 'image')}
+                        className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900 dark:file:text-blue-300"
+                      />
+                    </TabsContent>
+                    <TabsContent value="videos" className="space-y-2">
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Upload a video</p>
+                      <input
+                        type="file"
+                        accept="video/*"
+                        ref={videoInputRef}
+                        onChange={(e) => handleFileSelect(e, 'video')}
+                        className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900 dark:file:text-blue-300"
+                      />
+                    </TabsContent>
+                    <TabsContent value="files" className="space-y-2">
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Upload a document</p>
+                      <input
+                        type="file"
+                        ref={documentInputRef}
+                        onChange={(e) => handleFileSelect(e, 'file')}
+                        className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900 dark:file:text-blue-300"
+                      />
+                    </TabsContent>
+                  </Tabs>
+                </PopoverContent>
+              </Popover>
 
               <Input
                 type="text"
@@ -784,7 +934,12 @@ const ChatRoom = () => {
                 onChange={(e) => setMessage(e.target.value)}
                 className="flex-1"
               />
-              <Button type="submit" size="icon" className="shrink-0 bg-blue-600 hover:bg-blue-700">
+              <Button 
+                type="submit" 
+                size="icon" 
+                className="shrink-0 bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800"
+                disabled={!message.trim() && !selectedFile}
+              >
                 <Send className="h-5 w-5" />
               </Button>
             </form>
