@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -42,6 +41,7 @@ import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getFileType, uploadFile } from '@/lib/fileUpload';
+import { Textarea } from '@/components/ui/textarea';
 
 interface MessageProfile {
   name: string;
@@ -102,6 +102,7 @@ const ChatRoom = () => {
   const [filePreview, setFilePreview] = useState<string | null>(null);
   const [fileType, setFileType] = useState<string>('');
   const [showFilePreview, setShowFilePreview] = useState(false);
+  const [fileCaption, setFileCaption] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -336,11 +337,11 @@ const ChatRoom = () => {
           return;
         }
         
-        // Insert message with file
+        // Insert message with file and caption instead of filename
         await supabase.from('messages').insert({
           group_id: groupId,
           user_id: user.id,
-          content: selectedFile.name,
+          content: fileCaption || selectedFile.name, // Use caption if provided, fallback to filename
           content_type: contentType,
           file_url: fileUrl
         });
@@ -349,6 +350,7 @@ const ChatRoom = () => {
         setSelectedFile(null);
         setFilePreview(null);
         setShowFilePreview(false);
+        setFileCaption('');
         
         if (fileInputRef.current) fileInputRef.current.value = '';
         if (videoInputRef.current) videoInputRef.current.value = '';
@@ -587,7 +589,15 @@ const ChatRoom = () => {
             <X className="h-4 w-4" />
           </Button>
           <img src={filePreview} alt="Preview" className="max-h-40 mx-auto" />
-          <p className="text-xs text-center mt-1 truncate">{selectedFile.name}</p>
+          <div className="mt-2">
+            <Textarea 
+              placeholder="Add a caption..." 
+              value={fileCaption} 
+              onChange={(e) => setFileCaption(e.target.value)}
+              className="text-sm resize-none"
+              rows={2}
+            />
+          </div>
         </div>
       );
     } else if (fileType === 'video' && filePreview) {
@@ -605,7 +615,15 @@ const ChatRoom = () => {
             <source src={filePreview} />
             Your browser does not support the video tag.
           </video>
-          <p className="text-xs text-center mt-1 truncate">{selectedFile.name}</p>
+          <div className="mt-2">
+            <Textarea 
+              placeholder="Add a caption..." 
+              value={fileCaption} 
+              onChange={(e) => setFileCaption(e.target.value)}
+              className="text-sm resize-none"
+              rows={2}
+            />
+          </div>
         </div>
       );
     } else if (fileType === 'file') {
@@ -627,6 +645,15 @@ const ChatRoom = () => {
                 {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
               </p>
             </div>
+          </div>
+          <div className="mt-2">
+            <Textarea 
+              placeholder="Add a caption..." 
+              value={fileCaption} 
+              onChange={(e) => setFileCaption(e.target.value)}
+              className="text-sm resize-none"
+              rows={2}
+            />
           </div>
         </div>
       );
