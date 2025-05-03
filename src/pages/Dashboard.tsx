@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { DashboardLayout } from '@/components/layouts/DashboardLayout';
-import { GroupList } from '@/components/groups/GroupList';
+import GroupList from '@/components/groups/GroupList';
 import { ActiveCalls } from '@/components/video-call/ActiveCalls';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';

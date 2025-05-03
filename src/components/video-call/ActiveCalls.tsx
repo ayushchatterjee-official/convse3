@@ -25,10 +25,12 @@ export const ActiveCalls: React.FC = () => {
       try {
         setLoading(true);
         
-        // Make a raw SQL query to get the rooms with participant count
-        const { data, error } = await supabase.rpc('get_active_rooms_for_user', {
-          user_id: user.id
-        });
+        // Since we don't have the RPC function yet, we'll use a direct query
+        const { data, error } = await supabase
+          .from('video_call_rooms')
+          .select('id, code, admin_id, last_activity, active')
+          .eq('active', true)
+          .order('last_activity', { ascending: false });
         
         if (error) {
           console.error('Error fetching active calls:', error);
@@ -37,7 +39,22 @@ export const ActiveCalls: React.FC = () => {
           return;
         }
         
-        setActiveRooms(data || []);
+        // For each room, fetch the participant count
+        const roomsWithCount = await Promise.all(
+          (data || []).map(async (room) => {
+            const { count, error: countError } = await supabase
+              .from('video_call_participants')
+              .select('*', { count: 'exact', head: true })
+              .eq('room_id', room.id);
+            
+            return {
+              ...room,
+              participant_count: count || 0
+            };
+          })
+        );
+        
+        setActiveRooms(roomsWithCount);
       } catch (error) {
         console.error('Error fetching active calls:', error);
         toast.error('Failed to load active calls');

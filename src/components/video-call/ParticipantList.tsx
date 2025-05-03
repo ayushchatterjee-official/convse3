@@ -24,11 +24,21 @@ export const ParticipantList: React.FC<{
   useEffect(() => {
     const fetchParticipants = async () => {
       try {
-        // Use a direct SQL query instead of the API
-        const { data, error } = await supabase.rpc('get_room_participants', {
-          room_id_param: roomId
-        });
-          
+        // Direct query instead of RPC
+        const { data, error } = await supabase
+          .from('video_call_participants')
+          .select(`
+            id, 
+            user_id, 
+            room_id, 
+            joined_at, 
+            is_admin,
+            approved,
+            profiles:user_id(name, profile_pic)
+          `)
+          .eq('room_id', roomId)
+          .eq('approved', true);
+        
         if (error) {
           console.error('Error fetching participants:', error);
           return;
@@ -56,11 +66,20 @@ export const ParticipantList: React.FC<{
     
     const fetchJoinRequests = async () => {
       try {
-        // Use a direct SQL query
-        const { data, error } = await supabase.rpc('get_room_join_requests', {
-          room_id_param: roomId
-        });
-          
+        // Direct query instead of RPC
+        const { data, error } = await supabase
+          .from('video_call_join_requests')
+          .select(`
+            id, 
+            user_id, 
+            room_id, 
+            status,
+            created_at,
+            profiles:user_id(name, profile_pic)
+          `)
+          .eq('room_id', roomId)
+          .eq('status', 'pending');
+        
         if (error) {
           console.error('Error fetching join requests:', error);
           return;
@@ -85,22 +104,53 @@ export const ParticipantList: React.FC<{
   // Handle join request approval/rejection
   const handleJoinRequest = async (requestId: string, approve: boolean) => {
     try {
-      // Call a stored procedure to handle the approval/rejection logic
-      const { data, error } = await supabase.rpc('handle_join_request', {
-        request_id_param: requestId,
-        approve_param: approve
-      });
+      // Update the request status
+      const { error: updateError } = await supabase
+        .from('video_call_join_requests')
+        .update({ status: approve ? 'approved' : 'rejected' })
+        .eq('id', requestId);
       
-      if (error) throw error;
+      if (updateError) throw updateError;
       
-      // Update local state
+      // If approved, add the user as a participant
       if (approve) {
-        // Refresh participants list
-        const { data: participantsData } = await supabase.rpc('get_room_participants', {
-          room_id_param: roomId
-        });
+        // Get the request details first
+        const { data: requestData, error: requestError } = await supabase
+          .from('video_call_join_requests')
+          .select('user_id, room_id')
+          .eq('id', requestId)
+          .single();
         
-        if (participantsData) {
+        if (requestError) throw requestError;
+        
+        // Add as participant
+        const { error: participantError } = await supabase
+          .from('video_call_participants')
+          .upsert({
+            user_id: requestData.user_id,
+            room_id: requestData.room_id,
+            joined_at: new Date().toISOString(),
+            approved: true
+          });
+        
+        if (participantError) throw participantError;
+        
+        // Refresh participants list
+        const { data: participantsData, error: participantsError } = await supabase
+          .from('video_call_participants')
+          .select(`
+            id, 
+            user_id, 
+            room_id, 
+            joined_at, 
+            is_admin,
+            approved,
+            profiles:user_id(name, profile_pic)
+          `)
+          .eq('room_id', roomId)
+          .eq('approved', true);
+        
+        if (!participantsError && participantsData) {
           setParticipants(participantsData);
         }
       }
