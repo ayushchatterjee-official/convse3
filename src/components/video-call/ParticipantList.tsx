@@ -131,8 +131,8 @@ export const ParticipantList: React.FC<{
                 <div key={request.id} className="flex items-center justify-between border rounded-md p-2">
                   <div className="flex items-center">
                     <Avatar className="h-8 w-8 mr-2">
-                      {request.profiles?.profile_pic ? (
-                        <AvatarImage src={request.profiles.profile_pic} />
+                      {request.profile_pic ? (
+                        <AvatarImage src={request.profile_pic} />
                       ) : (
                         <AvatarFallback>
                           {request.user_name?.charAt(0) || 'U'}

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layouts/DashboardLayout';
@@ -15,7 +14,7 @@ import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { LoaderCircle } from 'lucide-react';
-import { VideoCallParticipant } from '@/models/VideoCallRoom';
+import { VideoCallParticipant, VideoCallRoom } from '@/models/VideoCallRoom';
 
 const VideoCall: React.FC = () => {
   const { roomCode } = useParams<{ roomCode: string }>();
@@ -33,7 +32,7 @@ const VideoCall: React.FC = () => {
   } = useVideoCall();
 
   const [loading, setLoading] = useState(false);
-  const [roomData, setRoomData] = useState<{ id: string; code: string; admin_id: string } | null>(null);
+  const [roomData, setRoomData] = useState<VideoCallRoom | null>(null);
   const [showChat, setShowChat] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
   const [joinInputCode, setJoinInputCode] = useState('');
@@ -105,7 +104,7 @@ const VideoCall: React.FC = () => {
     try {
       const newRoomData = await createRoom();
       if (newRoomData) {
-        setRoomData(newRoomData);
+        setRoomData(newRoomData as VideoCallRoom);
         if (await joinRoom(newRoomData.id)) {
           // Navigate to the room URL to make it shareable
           navigate(`/video-call/${newRoomData.code}`);
@@ -156,11 +155,11 @@ const VideoCall: React.FC = () => {
 
       if (participantData && participantData.approved) {
         // User is already an approved participant
-        setRoomData(roomData);
+        setRoomData(roomData as VideoCallRoom);
         await joinRoom(roomData.id);
       } else if (roomData.admin_id === user.id) {
         // User is the admin of the room
-        setRoomData(roomData);
+        setRoomData(roomData as VideoCallRoom);
         await joinRoom(roomData.id);
       } else {
         // User needs approval to join
@@ -178,7 +177,7 @@ const VideoCall: React.FC = () => {
           throw requestError;
         }
 
-        setRoomData(roomData);
+        setRoomData(roomData as VideoCallRoom);
         setRequestSent(true);
         toast.info('Join request sent. Waiting for approval.');
       }

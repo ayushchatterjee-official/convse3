@@ -24,7 +24,7 @@ interface VideoCallContextType {
   sendChatMessage: (content: string) => void;
   leaveCall: () => void;
   joinRoom: (roomId: string) => Promise<boolean>;
-  createRoom: () => Promise<{ id: string; code: string } | null>;
+  createRoom: () => Promise<VideoCallRoom | null>;
   peerConnections: Map<string, PeerConnection>;
 }
 
@@ -212,7 +212,7 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   // Function to create a new room
-  const createRoom = async (): Promise<{ id: string; code: string } | null> => {
+  const createRoom = async (): Promise<VideoCallRoom | null> => {
     if (!user) {
       toast.error('You must be logged in to create a room');
       return null;
@@ -231,7 +231,7 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           last_activity: new Date().toISOString(),
           active: true
         })
-        .select('id, code')
+        .select('*')
         .single();
         
       if (error) {
@@ -249,7 +249,7 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           approved: true
         });
       
-      return { id: roomData.id, code: roomData.code };
+      return roomData as VideoCallRoom;
     } catch (error) {
       console.error('Error creating room:', error);
       toast.error('Failed to create room');
