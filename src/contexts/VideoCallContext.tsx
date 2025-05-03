@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
@@ -223,13 +222,12 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       // Generate a 6-digit room code
       const code = Math.floor(100000 + Math.random() * 900000).toString();
       
-      // We'll manually implement this since we don't have the table yet
-      // Typically this would be in a database with proper table structure
+      // Insert the room into the video_call_rooms table
       const { data: roomData, error } = await supabase
-        .from('custom_rooms')
+        .from('video_call_rooms')
         .insert({
           code: code,
-          user_id: user.id, 
+          admin_id: user.id, 
           last_activity: new Date().toISOString(),
           active: true
         })
@@ -241,17 +239,26 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         throw error;
       }
       
+      // Add the creator as a participant
+      await supabase
+        .from('video_call_participants')
+        .insert({
+          user_id: user.id,
+          room_id: roomData.id,
+          is_admin: true,
+          approved: true
+        });
+      
       return { id: roomData.id, code: roomData.code };
     } catch (error) {
       console.error('Error creating room:', error);
-      toast.error('Failed to create room. Database tables may not be set up yet.');
+      toast.error('Failed to create room');
       return null;
     }
   };
 
   // Function to join a room
   const joinRoom = async (roomId: string): Promise<boolean> => {
-    // Simplified implementation since we're missing proper tables
     if (!user || !localStream) {
       toast.error('You must be logged in and have camera access to join a call');
       return false;
@@ -260,14 +267,31 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     try {
       currentRoomId.current = roomId;
       
-      // In a real implementation, we would:
-      // 1. Subscribe to room channel for signaling
-      // 2. Update room's last activity
-      // 3. Fetch existing participants
-      // 4. Create peer connections
-      // 5. Insert self as participant
+      // Update room's last activity
+      await supabase
+        .from('video_call_rooms')
+        .update({ last_activity: new Date().toISOString() })
+        .eq('id', roomId);
       
-      // For now, we'll just return true to show the UI
+      // Check if user is already a participant
+      const { data: participantData } = await supabase
+        .from('video_call_participants')
+        .select('*')
+        .eq('room_id', roomId)
+        .eq('user_id', user.id)
+        .single();
+      
+      if (!participantData) {
+        // If not already a participant, add as participant (based on approval)
+        await supabase
+          .from('video_call_participants')
+          .insert({
+            user_id: user.id,
+            room_id: roomId,
+            approved: false // This will be updated when approved by admin
+          });
+      }
+      
       console.log("Joining room:", roomId);
       toast.success("Room joined successfully");
       return true;

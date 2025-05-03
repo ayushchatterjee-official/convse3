@@ -15,6 +15,7 @@ import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { LoaderCircle } from 'lucide-react';
+import { VideoCallParticipant } from '@/models/VideoCallRoom';
 
 const VideoCall: React.FC = () => {
   const { roomCode } = useParams<{ roomCode: string }>();
@@ -38,6 +39,7 @@ const VideoCall: React.FC = () => {
   const [joinInputCode, setJoinInputCode] = useState('');
   const [requestSent, setRequestSent] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [participants, setParticipants] = useState<VideoCallParticipant[]>([]);
 
   // Check if the user is the room admin
   useEffect(() => {
@@ -64,10 +66,33 @@ const VideoCall: React.FC = () => {
 
   // Handle room code from URL
   useEffect(() => {
-    if (roomCode && !roomData && user) {
+    if (roomCode && !roomData && user && localStream) {
       handleJoinWithCode(roomCode);
     }
   }, [roomCode, user, localStream]);
+
+  // Fetch participants for the current room
+  useEffect(() => {
+    if (!roomData) return;
+
+    const fetchParticipants = async () => {
+      const { data, error } = await supabase
+        .rpc('get_room_participants', { room_id_param: roomData.id });
+      
+      if (!error && data) {
+        setParticipants(data as VideoCallParticipant[]);
+      }
+    };
+    
+    fetchParticipants();
+    
+    // Poll for changes
+    const intervalId = setInterval(fetchParticipants, 5000);
+    
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [roomData]);
 
   // Handle creating a new room
   const handleCreateRoom = async () => {
@@ -129,8 +154,8 @@ const VideoCall: React.FC = () => {
         .eq('user_id', user.id)
         .single();
 
-      if (participantData) {
-        // User is already a participant
+      if (participantData && participantData.approved) {
+        // User is already an approved participant
         setRoomData(roomData);
         await joinRoom(roomData.id);
       } else if (roomData.admin_id === user.id) {
@@ -337,7 +362,7 @@ const VideoCall: React.FC = () => {
                   <VideoPlayer
                     stream={stream}
                     username={
-                      participants.find(p => p.user_id === userId)?.profiles?.name || 'User'
+                      participants.find(p => p.user_id === userId)?.user_name || 'User'
                     }
                   />
                 </div>

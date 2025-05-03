@@ -13,12 +13,10 @@ export interface VideoCallParticipant {
   user_id: string;
   room_id: string;
   joined_at: string;
-  is_admin?: boolean;
+  is_admin: boolean;
   approved: boolean;
-  profiles?: {
-    name: string;
-    profile_pic: string | null;
-  } | null;
+  user_name?: string;
+  profile_pic?: string | null;
 }
 
 export interface JoinRequest {
@@ -27,8 +25,6 @@ export interface JoinRequest {
   room_id: string;
   status: 'pending' | 'approved' | 'rejected';
   created_at: string;
-  profiles?: {
-    name: string;
-    profile_pic: string | null;
-  } | null;
+  user_name?: string;
+  profile_pic?: string | null;
 }

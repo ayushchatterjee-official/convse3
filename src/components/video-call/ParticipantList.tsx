@@ -24,27 +24,16 @@ export const ParticipantList: React.FC<{
   useEffect(() => {
     const fetchParticipants = async () => {
       try {
-        // Direct query instead of RPC
+        // Call the get_room_participants function
         const { data, error } = await supabase
-          .from('video_call_participants')
-          .select(`
-            id, 
-            user_id, 
-            room_id, 
-            joined_at, 
-            is_admin,
-            approved,
-            profiles:user_id(name, profile_pic)
-          `)
-          .eq('room_id', roomId)
-          .eq('approved', true);
+          .rpc('get_room_participants', { room_id_param: roomId });
         
         if (error) {
           console.error('Error fetching participants:', error);
           return;
         }
         
-        setParticipants(data || []);
+        setParticipants(data as VideoCallParticipant[] || []);
       } catch (error) {
         console.error('Error in participants fetch:', error);
       }
@@ -66,26 +55,16 @@ export const ParticipantList: React.FC<{
     
     const fetchJoinRequests = async () => {
       try {
-        // Direct query instead of RPC
+        // Call the get_room_join_requests function
         const { data, error } = await supabase
-          .from('video_call_join_requests')
-          .select(`
-            id, 
-            user_id, 
-            room_id, 
-            status,
-            created_at,
-            profiles:user_id(name, profile_pic)
-          `)
-          .eq('room_id', roomId)
-          .eq('status', 'pending');
+          .rpc('get_room_join_requests', { room_id_param: roomId });
         
         if (error) {
           console.error('Error fetching join requests:', error);
           return;
         }
         
-        setJoinRequests(data || []);
+        setJoinRequests(data as JoinRequest[] || []);
       } catch (error) {
         console.error('Error in join requests fetch:', error);
       }
@@ -104,61 +83,31 @@ export const ParticipantList: React.FC<{
   // Handle join request approval/rejection
   const handleJoinRequest = async (requestId: string, approve: boolean) => {
     try {
-      // Update the request status
-      const { error: updateError } = await supabase
-        .from('video_call_join_requests')
-        .update({ status: approve ? 'approved' : 'rejected' })
-        .eq('id', requestId);
+      // Call the handle_join_request function
+      const { data: success, error } = await supabase
+        .rpc('handle_join_request', { 
+          request_id_param: requestId,
+          approve: approve 
+        });
       
-      if (updateError) throw updateError;
-      
-      // If approved, add the user as a participant
-      if (approve) {
-        // Get the request details first
-        const { data: requestData, error: requestError } = await supabase
-          .from('video_call_join_requests')
-          .select('user_id, room_id')
-          .eq('id', requestId)
-          .single();
-        
-        if (requestError) throw requestError;
-        
-        // Add as participant
-        const { error: participantError } = await supabase
-          .from('video_call_participants')
-          .upsert({
-            user_id: requestData.user_id,
-            room_id: requestData.room_id,
-            joined_at: new Date().toISOString(),
-            approved: true
-          });
-        
-        if (participantError) throw participantError;
-        
-        // Refresh participants list
-        const { data: participantsData, error: participantsError } = await supabase
-          .from('video_call_participants')
-          .select(`
-            id, 
-            user_id, 
-            room_id, 
-            joined_at, 
-            is_admin,
-            approved,
-            profiles:user_id(name, profile_pic)
-          `)
-          .eq('room_id', roomId)
-          .eq('approved', true);
-        
-        if (!participantsError && participantsData) {
-          setParticipants(participantsData);
-        }
+      if (error || !success) {
+        throw error || new Error('Failed to process request');
       }
       
       // Remove the request from the list
       setJoinRequests(prevRequests => 
         prevRequests.filter(request => request.id !== requestId)
       );
+      
+      // If approved, refresh participants list
+      if (approve) {
+        const { data, error: participantsError } = await supabase
+          .rpc('get_room_participants', { room_id_param: roomId });
+        
+        if (!participantsError && data) {
+          setParticipants(data as VideoCallParticipant[]);
+        }
+      }
       
       toast.success(`User ${approve ? 'approved' : 'rejected'}`);
     } catch (error) {
@@ -186,11 +135,11 @@ export const ParticipantList: React.FC<{
                         <AvatarImage src={request.profiles.profile_pic} />
                       ) : (
                         <AvatarFallback>
-                          {request.profiles?.name?.charAt(0) || 'U'}
+                          {request.user_name?.charAt(0) || 'U'}
                         </AvatarFallback>
                       )}
                     </Avatar>
-                    <span>{request.profiles?.name || 'Unknown User'}</span>
+                    <span>{request.user_name || 'Unknown User'}</span>
                   </div>
                   <div className="flex gap-2">
                     <Button 
@@ -231,17 +180,17 @@ export const ParticipantList: React.FC<{
               >
                 <div className="flex items-center">
                   <Avatar className="h-8 w-8 mr-2">
-                    {participant.profiles?.profile_pic ? (
-                      <AvatarImage src={participant.profiles.profile_pic} />
+                    {participant.profile_pic ? (
+                      <AvatarImage src={participant.profile_pic} />
                     ) : (
                       <AvatarFallback>
-                        {participant.profiles?.name?.charAt(0) || 'U'}
+                        {participant.user_name?.charAt(0) || 'U'}
                       </AvatarFallback>
                     )}
                   </Avatar>
                   <div>
                     <div className="flex items-center">
-                      <span>{participant.profiles?.name || 'Unknown User'}</span>
+                      <span>{participant.user_name || 'Unknown User'}</span>
                       {isCurrentUser && (
                         <span className="text-xs text-gray-500 ml-1">(You)</span>
                       )}

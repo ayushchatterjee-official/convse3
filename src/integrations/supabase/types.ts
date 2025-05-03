@@ -168,6 +168,100 @@ export type Database = {
         }
         Relationships: []
       }
+      video_call_join_requests: {
+        Row: {
+          created_at: string
+          id: string
+          room_id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          room_id: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          room_id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_call_join_requests_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "video_call_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      video_call_participants: {
+        Row: {
+          approved: boolean
+          id: string
+          is_admin: boolean
+          joined_at: string
+          room_id: string
+          user_id: string
+        }
+        Insert: {
+          approved?: boolean
+          id?: string
+          is_admin?: boolean
+          joined_at?: string
+          room_id: string
+          user_id: string
+        }
+        Update: {
+          approved?: boolean
+          id?: string
+          is_admin?: boolean
+          joined_at?: string
+          room_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_call_participants_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "video_call_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      video_call_rooms: {
+        Row: {
+          active: boolean
+          admin_id: string
+          code: string
+          created_at: string
+          id: string
+          last_activity: string
+        }
+        Insert: {
+          active?: boolean
+          admin_id: string
+          code: string
+          created_at?: string
+          id?: string
+          last_activity?: string
+        }
+        Update: {
+          active?: boolean
+          admin_id?: string
+          code?: string
+          created_at?: string
+          id?: string
+          last_activity?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -176,6 +270,45 @@ export type Database = {
       generate_random_code: {
         Args: { length: number }
         Returns: string
+      }
+      get_active_rooms: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          id: string
+          code: string
+          admin_id: string
+          last_activity: string
+          participant_count: number
+        }[]
+      }
+      get_room_join_requests: {
+        Args: { room_id_param: string }
+        Returns: {
+          id: string
+          user_id: string
+          room_id: string
+          status: string
+          created_at: string
+          user_name: string
+          profile_pic: string
+        }[]
+      }
+      get_room_participants: {
+        Args: { room_id_param: string }
+        Returns: {
+          id: string
+          user_id: string
+          room_id: string
+          joined_at: string
+          is_admin: boolean
+          approved: boolean
+          user_name: string
+          profile_pic: string
+        }[]
+      }
+      handle_join_request: {
+        Args: { request_id_param: string; approve: boolean }
+        Returns: boolean
       }
     }
     Enums: {
