@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
@@ -97,6 +98,18 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
     
     setIsVideoEnabled(enabled);
+    
+    // Update UI state immediately
+    peerConnections.current.forEach((peer) => {
+      if (peer.stream) {
+        const senders = peer.connection.getSenders();
+        senders.forEach((sender) => {
+          if (sender.track?.kind === 'video') {
+            sender.track.enabled = enabled;
+          }
+        });
+      }
+    });
   };
 
   // Function to toggle screen sharing
@@ -107,15 +120,19 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (isSharingScreen) {
         // Stop screen sharing and go back to camera
         const stream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
+          audio: isAudioEnabled,
           video: {
             width: { ideal: 1280 },
             height: { ideal: 720 },
           },
         });
         
+        // Stop all tracks in the current local stream
+        localStream.getTracks().forEach(track => track.stop());
+        
         setLocalStream(stream);
         setIsSharingScreen(false);
+        setIsVideoEnabled(true);
         
         // Update all peer connections with new stream
         peerConnections.current.forEach((peer) => {
@@ -139,6 +156,9 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         const audioTrack = localStream.getAudioTracks()[0];
         const screenVideoTrack = screenStream.getVideoTracks()[0];
         
+        // Stop video tracks in the current local stream
+        localStream.getVideoTracks().forEach(track => track.stop());
+        
         const newStream = new MediaStream();
         if (audioTrack) newStream.addTrack(audioTrack);
         if (screenVideoTrack) newStream.addTrack(screenVideoTrack);
@@ -158,26 +178,8 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         
         // When screen sharing stops
         screenVideoTrack.addEventListener('ended', async () => {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            audio: isAudioEnabled,
-            video: isVideoEnabled,
-          });
-          
-          setLocalStream(stream);
-          setIsSharingScreen(false);
-          
-          // Update all peer connections with new stream
-          peerConnections.current.forEach((peer) => {
-            const senders = peer.connection.getSenders();
-            senders.forEach((sender) => {
-              if (sender.track?.kind === 'video') {
-                const track = stream.getVideoTracks()[0];
-                if (track) {
-                  sender.replaceTrack(track);
-                }
-              }
-            });
-          });
+          // Go back to camera
+          await toggleScreenShare();
         });
       }
     } catch (error) {
@@ -317,15 +319,19 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       
       // Clear local state
       setMessages([]);
-      currentRoomId.current = null;
       
-      // Stop local stream tracks
+      // Stop local stream tracks before setting to null
       if (localStream) {
         localStream.getTracks().forEach(track => {
           track.stop();
         });
-        setLocalStream(null);
       }
+      
+      setLocalStream(null);
+      currentRoomId.current = null;
+      setIsVideoEnabled(false);
+      setIsAudioEnabled(false);
+      setIsSharingScreen(false);
 
       toast.info("You have left the call");
     } catch (error) {
@@ -377,7 +383,8 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     // Store the connection
     peerConnections.current.set(peerId, {
       userId: peerId,
-      connection: peerConnection
+      connection: peerConnection,
+      stream: localStream
     });
     
     return peerConnection;
@@ -398,7 +405,7 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         });
       }
     };
-  }, [localStream]);
+  }, []);
 
   return (
     <VideoCallContext.Provider

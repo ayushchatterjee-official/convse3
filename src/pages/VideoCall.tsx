@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layouts/DashboardLayout';
@@ -85,8 +86,8 @@ const VideoCall: React.FC = () => {
     
     fetchParticipants();
     
-    // Poll for changes
-    const intervalId = setInterval(fetchParticipants, 5000);
+    // Poll for changes - shorter interval for better responsiveness
+    const intervalId = setInterval(fetchParticipants, 2000);
     
     return () => {
       clearInterval(intervalId);
@@ -104,7 +105,7 @@ const VideoCall: React.FC = () => {
     try {
       const newRoomData = await createRoom();
       if (newRoomData) {
-        setRoomData(newRoomData as VideoCallRoom);
+        setRoomData(newRoomData);
         if (await joinRoom(newRoomData.id)) {
           // Navigate to the room URL to make it shareable
           navigate(`/video-call/${newRoomData.code}`);
@@ -161,20 +162,37 @@ const VideoCall: React.FC = () => {
         // User is the admin of the room
         setRoomData(roomData as VideoCallRoom);
         await joinRoom(roomData.id);
-      } else {
-        // User needs approval to join
-        // Create join request
-        const { error: requestError } = await supabase
-          .from('video_call_join_requests')
+        
+        // Ensure admin is always approved
+        await supabase
+          .from('video_call_participants')
           .upsert({
             user_id: user.id,
             room_id: roomData.id,
-            status: 'pending',
-            created_at: new Date().toISOString()
+            is_admin: true,
+            approved: true
           });
-
-        if (requestError) {
-          throw requestError;
+      } else {
+        // User needs approval to join
+        // Check if there is already a join request
+        const { data: existingRequest, error: requestError } = await supabase
+          .from('video_call_join_requests')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('room_id', roomData.id)
+          .eq('status', 'pending')
+          .single();
+          
+        if (!existingRequest) {
+          // Create join request if none exists
+          await supabase
+            .from('video_call_join_requests')
+            .upsert({
+              user_id: user.id,
+              room_id: roomData.id,
+              status: 'pending',
+              created_at: new Date().toISOString()
+            });
         }
 
         setRoomData(roomData as VideoCallRoom);
@@ -208,6 +226,7 @@ const VideoCall: React.FC = () => {
     if (!user || !roomData || !requestSent) return;
 
     const checkApproval = async () => {
+      // Check if the user is now approved
       const { data } = await supabase
         .from('video_call_participants')
         .select('*')
@@ -223,25 +242,14 @@ const VideoCall: React.FC = () => {
       }
     };
 
-    // Check initially
+    // Check immediately
     checkApproval();
-
-    // Subscribe to participant changes
-    const channel = supabase
-      .channel(`room:${roomData.id}:participants`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'video_call_participants' },
-        (payload) => {
-          if (payload.new && payload.new.user_id === user.id) {
-            checkApproval();
-          }
-        }
-      )
-      .subscribe();
-
+    
+    // Then check periodically
+    const intervalId = setInterval(checkApproval, 3000);
+    
     return () => {
-      supabase.removeChannel(channel);
+      clearInterval(intervalId);
     };
   }, [user, roomData, requestSent]);
 

@@ -42,7 +42,7 @@ export const ParticipantList: React.FC<{
     fetchParticipants();
     
     // Poll for changes instead of using realtime
-    const intervalId = setInterval(fetchParticipants, 5000);
+    const intervalId = setInterval(fetchParticipants, 3000);
       
     return () => {
       clearInterval(intervalId);
@@ -72,8 +72,8 @@ export const ParticipantList: React.FC<{
     
     fetchJoinRequests();
     
-    // Poll for changes instead of using realtime
-    const intervalId = setInterval(fetchJoinRequests, 5000);
+    // Poll for changes instead of using realtime - use shorter interval for better responsiveness
+    const intervalId = setInterval(fetchJoinRequests, 2000);
       
     return () => {
       clearInterval(intervalId);
