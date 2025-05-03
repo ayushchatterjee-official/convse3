@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layouts/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
@@ -40,6 +39,7 @@ const VideoCall: React.FC = () => {
   const [requestSent, setRequestSent] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [participants, setParticipants] = useState<VideoCallParticipant[]>([]);
+  const [approvalCheckCount, setApprovalCheckCount] = useState(0);
 
   // Check if the user is the room admin
   useEffect(() => {
@@ -221,13 +221,15 @@ const VideoCall: React.FC = () => {
     navigate('/dashboard');
   };
 
-  // Check if user's join request is approved
-  useEffect(() => {
+  // Check if user's join request is approved - with improved checking
+  const checkApproval = useCallback(async () => {
     if (!user || !roomData || !requestSent) return;
-
-    const checkApproval = async () => {
+    
+    console.log("Checking approval status");
+    
+    try {
       // Check if the user is now approved
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('video_call_participants')
         .select('*')
         .eq('room_id', roomData.id)
@@ -235,23 +237,47 @@ const VideoCall: React.FC = () => {
         .eq('approved', true)
         .single();
 
+      if (error && error.code !== 'PGRST116') { // Not found error code
+        console.error("Error checking approval:", error);
+        return;
+      }
+
       if (data) {
+        console.log("Approval found:", data);
         setRequestSent(false);
         await joinRoom(roomData.id);
         toast.success('Your join request was approved');
+      } else {
+        console.log("No approval found yet");
       }
-    };
+    } catch (error) {
+      console.error("Error in checkApproval:", error);
+    }
+  }, [user, roomData, requestSent, joinRoom]);
 
-    // Check immediately
-    checkApproval();
+  // Run the approval check every time approvalCheckCount changes
+  useEffect(() => {
+    if (requestSent) {
+      checkApproval();
+    }
+  }, [checkApproval, requestSent, approvalCheckCount]);
+
+  // Set up periodic checking with a counter to ensure fresh checks
+  useEffect(() => {
+    if (!requestSent) return;
+    
+    // Check immediately on mount
+    setApprovalCheckCount(prev => prev + 1);
     
     // Then check periodically
-    const intervalId = setInterval(checkApproval, 3000);
+    const intervalId = setInterval(() => {
+      setApprovalCheckCount(prev => prev + 1);
+    }, 2000); // Check more frequently
     
     return () => {
       clearInterval(intervalId);
     };
-  }, [user, roomData, requestSent]);
+  }, [requestSent]);
 
   // Main content when not in a call
   const renderJoinScreen = () => {

@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useVideoCall } from '@/contexts/VideoCallContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -19,66 +19,69 @@ export const ParticipantList: React.FC<{
   const { remoteStreams, peerConnections } = useVideoCall();
   const [participants, setParticipants] = useState<VideoCallParticipant[]>([]);
   const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   
   // Fetch participants
-  useEffect(() => {
-    const fetchParticipants = async () => {
-      try {
-        // Call the get_room_participants function
-        const { data, error } = await supabase
-          .rpc('get_room_participants', { room_id_param: roomId });
-        
-        if (error) {
-          console.error('Error fetching participants:', error);
-          return;
-        }
-        
-        setParticipants(data as VideoCallParticipant[] || []);
-      } catch (error) {
-        console.error('Error in participants fetch:', error);
+  const fetchParticipants = useCallback(async () => {
+    try {
+      // Call the get_room_participants function
+      const { data, error } = await supabase
+        .rpc('get_room_participants', { room_id_param: roomId });
+      
+      if (error) {
+        console.error('Error fetching participants:', error);
+        return;
       }
-    };
-    
+      
+      setParticipants(data as VideoCallParticipant[] || []);
+    } catch (error) {
+      console.error('Error in participants fetch:', error);
+    }
+  }, [roomId]);
+  
+  useEffect(() => {
     fetchParticipants();
     
-    // Poll for changes instead of using realtime
-    const intervalId = setInterval(fetchParticipants, 3000);
+    // Poll for changes
+    const intervalId = setInterval(fetchParticipants, 2000);
       
     return () => {
       clearInterval(intervalId);
     };
-  }, [roomId]);
+  }, [fetchParticipants, refreshTrigger]);
   
   // Fetch join requests if user is admin
+  const fetchJoinRequests = useCallback(async () => {
+    if (!isAdmin) return;
+    
+    try {
+      // Call the get_room_join_requests function
+      const { data, error } = await supabase
+        .rpc('get_room_join_requests', { room_id_param: roomId });
+      
+      if (error) {
+        console.error('Error fetching join requests:', error);
+        return;
+      }
+      
+      setJoinRequests(data as JoinRequest[] || []);
+    } catch (error) {
+      console.error('Error in join requests fetch:', error);
+    }
+  }, [roomId, isAdmin]);
+  
   useEffect(() => {
     if (!isAdmin) return;
     
-    const fetchJoinRequests = async () => {
-      try {
-        // Call the get_room_join_requests function
-        const { data, error } = await supabase
-          .rpc('get_room_join_requests', { room_id_param: roomId });
-        
-        if (error) {
-          console.error('Error fetching join requests:', error);
-          return;
-        }
-        
-        setJoinRequests(data as JoinRequest[] || []);
-      } catch (error) {
-        console.error('Error in join requests fetch:', error);
-      }
-    };
-    
     fetchJoinRequests();
     
-    // Poll for changes instead of using realtime - use shorter interval for better responsiveness
-    const intervalId = setInterval(fetchJoinRequests, 2000);
+    // Poll for changes - use shorter interval for better responsiveness
+    const intervalId = setInterval(fetchJoinRequests, 1500);
       
     return () => {
       clearInterval(intervalId);
     };
-  }, [roomId, isAdmin]);
+  }, [fetchJoinRequests, isAdmin, refreshTrigger]);
   
   // Handle join request approval/rejection
   const handleJoinRequest = async (requestId: string, approve: boolean) => {
@@ -99,15 +102,8 @@ export const ParticipantList: React.FC<{
         prevRequests.filter(request => request.id !== requestId)
       );
       
-      // If approved, refresh participants list
-      if (approve) {
-        const { data, error: participantsError } = await supabase
-          .rpc('get_room_participants', { room_id_param: roomId });
-        
-        if (!participantsError && data) {
-          setParticipants(data as VideoCallParticipant[]);
-        }
-      }
+      // Trigger immediate refresh
+      setRefreshTrigger(prev => prev + 1);
       
       toast.success(`User ${approve ? 'approved' : 'rejected'}`);
     } catch (error) {

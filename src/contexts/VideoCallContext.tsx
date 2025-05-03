@@ -1,5 +1,4 @@
-
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
@@ -53,6 +52,11 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Function to initialize the local video stream
   const initializeLocalStream = async (): Promise<boolean> => {
     try {
+      // Stop any existing tracks first to ensure clean state
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
+      
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
         video: {
@@ -72,45 +76,33 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
   
-  // Function to toggle audio
-  const toggleAudio = () => {
+  // Function to toggle audio - improved with reliable state updates
+  const toggleAudio = useCallback(() => {
     if (!localStream) return;
     
-    const audioTracks = localStream.getAudioTracks();
-    const enabled = !isAudioEnabled;
+    const newEnabledState = !isAudioEnabled;
     
-    audioTracks.forEach(track => {
-      track.enabled = enabled;
+    localStream.getAudioTracks().forEach(track => {
+      track.enabled = newEnabledState;
     });
     
-    setIsAudioEnabled(enabled);
-  };
+    setIsAudioEnabled(newEnabledState);
+    console.log(`Audio ${newEnabledState ? 'enabled' : 'disabled'}`);
+  }, [localStream, isAudioEnabled]);
   
-  // Function to toggle video
-  const toggleVideo = () => {
+  // Function to toggle video - improved with reliable state updates
+  const toggleVideo = useCallback(() => {
     if (!localStream) return;
     
-    const videoTracks = localStream.getVideoTracks();
-    const enabled = !isVideoEnabled;
+    const newEnabledState = !isVideoEnabled;
     
-    videoTracks.forEach(track => {
-      track.enabled = enabled;
+    localStream.getVideoTracks().forEach(track => {
+      track.enabled = newEnabledState;
     });
     
-    setIsVideoEnabled(enabled);
-    
-    // Update UI state immediately
-    peerConnections.current.forEach((peer) => {
-      if (peer.stream) {
-        const senders = peer.connection.getSenders();
-        senders.forEach((sender) => {
-          if (sender.track?.kind === 'video') {
-            sender.track.enabled = enabled;
-          }
-        });
-      }
-    });
-  };
+    setIsVideoEnabled(newEnabledState);
+    console.log(`Video ${newEnabledState ? 'enabled' : 'disabled'}`);
+  }, [localStream, isVideoEnabled]);
 
   // Function to toggle screen sharing
   const toggleScreenShare = async () => {
@@ -304,11 +296,13 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
   
-  // Function to leave the current call
+  // Function to leave the current call - improved to ensure all tracks are properly stopped
   const leaveCall = async () => {
     if (!currentRoomId.current || !user) return;
     
     try {
+      console.log("Leaving call, stopping all connections and streams");
+      
       // Close all peer connections
       peerConnections.current.forEach((peer) => {
         peer.connection.close();
@@ -322,12 +316,14 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       
       // Stop local stream tracks before setting to null
       if (localStream) {
+        console.log("Stopping all local tracks");
         localStream.getTracks().forEach(track => {
           track.stop();
+          console.log(`Track ${track.kind} stopped`);
         });
+        setLocalStream(null);
       }
       
-      setLocalStream(null);
       currentRoomId.current = null;
       setIsVideoEnabled(false);
       setIsAudioEnabled(false);
@@ -393,6 +389,8 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      console.log("VideoCallProvider unmounting, cleaning up resources");
+      
       // Close all peer connections
       peerConnections.current.forEach((peer) => {
         peer.connection.close();

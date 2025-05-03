@@ -22,24 +22,32 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  // Update stream tracks whenever enabled status changes
   useEffect(() => {
     if (videoRef.current && stream) {
       videoRef.current.srcObject = stream;
-      
-      // Update video tracks to reflect enabled/disabled state
-      if (isLocal) {
-        const videoTracks = stream.getVideoTracks();
-        videoTracks.forEach(track => {
-          track.enabled = isVideoEnabled;
-        });
-        
-        const audioTracks = stream.getAudioTracks();
-        audioTracks.forEach(track => {
-          track.enabled = isAudioEnabled;
-        });
-      }
     }
-  }, [stream, isVideoEnabled, isAudioEnabled, isLocal]);
+  }, [stream]);
+
+  // Separate effect to handle video tracks enabled/disabled state
+  useEffect(() => {
+    if (stream) {
+      const videoTracks = stream.getVideoTracks();
+      videoTracks.forEach(track => {
+        track.enabled = isVideoEnabled;
+      });
+    }
+  }, [stream, isVideoEnabled]);
+
+  // Separate effect to handle audio tracks enabled/disabled state
+  useEffect(() => {
+    if (stream) {
+      const audioTracks = stream.getAudioTracks();
+      audioTracks.forEach(track => {
+        track.enabled = isAudioEnabled;
+      });
+    }
+  }, [stream, isAudioEnabled]);
 
   // Helper to determine if video is actually showing
   const isVideoActive = stream && 
