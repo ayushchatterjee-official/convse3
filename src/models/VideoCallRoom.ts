@@ -13,6 +13,7 @@ export interface VideoCallParticipant {
   user_id: string;
   room_id: string;
   joined_at: string;
+  is_admin?: boolean;
   approved: boolean;
   profiles?: {
     name: string;

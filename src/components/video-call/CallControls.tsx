@@ -9,7 +9,6 @@ import {
   VideoOff, 
   PhoneOff, 
   ScreenShare,
-  StopScreenShare,
   MessageCircle,
   Users
 } from 'lucide-react';
@@ -89,11 +88,7 @@ export const CallControls: React.FC<CallControlsProps> = ({
               size="icon"
               className="rounded-full"
             >
-              {isSharingScreen ? (
-                <StopScreenShare className="h-5 w-5" />
-              ) : (
-                <ScreenShare className="h-5 w-5" />
-              )}
+              <ScreenShare className="h-5 w-5" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>

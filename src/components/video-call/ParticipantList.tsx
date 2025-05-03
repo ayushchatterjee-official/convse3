@@ -9,25 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Mic, MicOff, Video, VideoOff, CheckCircle, XCircle } from 'lucide-react';
-
-interface Participant {
-  user_id: string;
-  is_admin: boolean;
-  approved: boolean;
-  profiles?: {
-    name: string;
-    profile_pic: string | null;
-  } | null;
-}
-
-interface JoinRequest {
-  id: string;
-  user_id: string;
-  profiles?: {
-    name: string;
-    profile_pic: string | null;
-  } | null;
-}
+import { VideoCallParticipant, JoinRequest } from '@/models/VideoCallRoom';
 
 export const ParticipantList: React.FC<{
   roomId: string;
@@ -35,49 +17,36 @@ export const ParticipantList: React.FC<{
 }> = ({ roomId, isAdmin }) => {
   const { user } = useAuth();
   const { remoteStreams, peerConnections } = useVideoCall();
-  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [participants, setParticipants] = useState<VideoCallParticipant[]>([]);
   const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
   
   // Fetch participants
   useEffect(() => {
     const fetchParticipants = async () => {
-      const { data, error } = await supabase
-        .from('video_call_participants')
-        .select(`
-          user_id,
-          is_admin,
-          approved,
-          profiles:user_id (
-            name,
-            profile_pic
-          )
-        `)
-        .eq('room_id', roomId);
+      try {
+        // Use a direct SQL query instead of the API
+        const { data, error } = await supabase.rpc('get_room_participants', {
+          room_id_param: roomId
+        });
+          
+        if (error) {
+          console.error('Error fetching participants:', error);
+          return;
+        }
         
-      if (error) {
-        console.error('Error fetching participants:', error);
-        return;
+        setParticipants(data || []);
+      } catch (error) {
+        console.error('Error in participants fetch:', error);
       }
-      
-      setParticipants(data || []);
     };
     
     fetchParticipants();
     
-    // Subscribe to participant changes
-    const channel = supabase
-      .channel(`room:${roomId}:participants`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'video_call_participants', filter: `room_id=eq.${roomId}` },
-        () => {
-          fetchParticipants();
-        }
-      )
-      .subscribe();
+    // Poll for changes instead of using realtime
+    const intervalId = setInterval(fetchParticipants, 5000);
       
     return () => {
-      supabase.removeChannel(channel);
+      clearInterval(intervalId);
     };
   }, [roomId]);
   
@@ -86,79 +55,60 @@ export const ParticipantList: React.FC<{
     if (!isAdmin) return;
     
     const fetchJoinRequests = async () => {
-      const { data, error } = await supabase
-        .from('video_call_join_requests')
-        .select(`
-          id,
-          user_id,
-          profiles:user_id (
-            name,
-            profile_pic
-          )
-        `)
-        .eq('room_id', roomId)
-        .eq('status', 'pending');
+      try {
+        // Use a direct SQL query
+        const { data, error } = await supabase.rpc('get_room_join_requests', {
+          room_id_param: roomId
+        });
+          
+        if (error) {
+          console.error('Error fetching join requests:', error);
+          return;
+        }
         
-      if (error) {
-        console.error('Error fetching join requests:', error);
-        return;
+        setJoinRequests(data || []);
+      } catch (error) {
+        console.error('Error in join requests fetch:', error);
       }
-      
-      setJoinRequests(data || []);
     };
     
     fetchJoinRequests();
     
-    // Subscribe to join request changes
-    const channel = supabase
-      .channel(`room:${roomId}:join_requests`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'video_call_join_requests', filter: `room_id=eq.${roomId}` },
-        () => {
-          fetchJoinRequests();
-        }
-      )
-      .subscribe();
+    // Poll for changes instead of using realtime
+    const intervalId = setInterval(fetchJoinRequests, 5000);
       
     return () => {
-      supabase.removeChannel(channel);
+      clearInterval(intervalId);
     };
   }, [roomId, isAdmin]);
   
   // Handle join request approval/rejection
   const handleJoinRequest = async (requestId: string, approve: boolean) => {
     try {
-      if (approve) {
-        // Get the join request to access the user_id
-        const { data: requestData, error: requestError } = await supabase
-          .from('video_call_join_requests')
-          .select('user_id')
-          .eq('id', requestId)
-          .single();
-        
-        if (requestError) throw requestError;
-        
-        // Add participant
-        const { error: participantError } = await supabase
-          .from('video_call_participants')
-          .upsert({
-            user_id: requestData.user_id,
-            room_id: roomId,
-            joined_at: new Date().toISOString(),
-            approved: true
-          });
-        
-        if (participantError) throw participantError;
-      }
-      
-      // Update request status
-      const { error } = await supabase
-        .from('video_call_join_requests')
-        .update({ status: approve ? 'approved' : 'rejected' })
-        .eq('id', requestId);
+      // Call a stored procedure to handle the approval/rejection logic
+      const { data, error } = await supabase.rpc('handle_join_request', {
+        request_id_param: requestId,
+        approve_param: approve
+      });
       
       if (error) throw error;
+      
+      // Update local state
+      if (approve) {
+        // Refresh participants list
+        const { data: participantsData } = await supabase.rpc('get_room_participants', {
+          room_id_param: roomId
+        });
+        
+        if (participantsData) {
+          setParticipants(participantsData);
+        }
+      }
+      
+      // Remove the request from the list
+      setJoinRequests(prevRequests => 
+        prevRequests.filter(request => request.id !== requestId)
+      );
       
       toast.success(`User ${approve ? 'approved' : 'rejected'}`);
     } catch (error) {

@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { VideoCallCard } from './VideoCallCard';
+import { toast } from 'sonner';
 
 interface RoomData {
   id: string;
@@ -24,31 +25,23 @@ export const ActiveCalls: React.FC = () => {
       try {
         setLoading(true);
         
-        // Get rooms where user is a participant or admin
-        const { data, error } = await supabase
-          .from('video_call_rooms')
-          .select(`
-            id, 
-            code, 
-            admin_id, 
-            last_activity,
-            (
-              SELECT count(*) 
-              FROM video_call_participants 
-              WHERE room_id = video_call_rooms.id
-            ) as participant_count
-          `)
-          .eq('active', true)
-          .or(`admin_id.eq.${user.id},id.in.(
-            SELECT room_id FROM video_call_participants WHERE user_id = '${user.id}'
-          )`)
-          .order('last_activity', { ascending: false });
+        // Make a raw SQL query to get the rooms with participant count
+        const { data, error } = await supabase.rpc('get_active_rooms_for_user', {
+          user_id: user.id
+        });
         
-        if (error) throw error;
+        if (error) {
+          console.error('Error fetching active calls:', error);
+          toast.error('Failed to load active calls');
+          setActiveRooms([]);
+          return;
+        }
         
         setActiveRooms(data || []);
       } catch (error) {
         console.error('Error fetching active calls:', error);
+        toast.error('Failed to load active calls');
+        setActiveRooms([]);
       } finally {
         setLoading(false);
       }
@@ -56,28 +49,11 @@ export const ActiveCalls: React.FC = () => {
     
     fetchRooms();
     
-    // Subscribe to changes
-    const roomsChannel = supabase
-      .channel('video_call_rooms_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'video_call_rooms' },
-        () => fetchRooms()
-      )
-      .subscribe();
-      
-    const participantsChannel = supabase
-      .channel('video_call_participants_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'video_call_participants' },
-        () => fetchRooms()
-      )
-      .subscribe();
+    // Set up a polling mechanism instead of subscribing to changes
+    const intervalId = setInterval(fetchRooms, 10000); // Poll every 10 seconds
     
     return () => {
-      supabase.removeChannel(roomsChannel);
-      supabase.removeChannel(participantsChannel);
+      clearInterval(intervalId);
     };
   }, [user]);
 

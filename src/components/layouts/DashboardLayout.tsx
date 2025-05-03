@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Sidebar } from '@/components/ui/sidebar';
-import { useMobileBreakpoint } from '@/hooks/use-mobile';
+import { useIsMobile } from '@/hooks/use-mobile';
 import {
   User,
   Home,
@@ -42,7 +42,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   noPadding = false,
 }) => {
   const { user, profile, isAdmin, signOut } = useAuth();
-  const isMobile = useMobileBreakpoint();
+  const isMobile = useIsMobile();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -182,12 +182,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         {isMobile && (
           <header className="border-b py-3 px-4 flex items-center justify-between dark:border-gray-800">
             <div className="flex items-center">
-              <Sidebar.Trigger asChild>
-                <Button variant="ghost" size="sm">
-                  <Menu className="h-5 w-5" />
-                  <span className="sr-only">Toggle sidebar</span>
-                </Button>
-              </Sidebar.Trigger>
+              <Button variant="ghost" size="sm" onClick={() => document.querySelector('.sidebar')?.classList.toggle('sidebar-visible')}>
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Toggle sidebar</span>
+              </Button>
               <Link to="/dashboard" className="ml-2 flex items-center gap-2">
                 <img 
                   src="https://cdn.glitch.global/379d6b26-1c93-4dc3-b34f-29fe75cab18e/favicon1.png?v=1716545083192" 
