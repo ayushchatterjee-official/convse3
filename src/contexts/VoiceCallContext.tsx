@@ -179,13 +179,12 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setMessages(prev => [...prev, newMessage]);
     
     // Send message to other participants via Supabase Realtime
-    supabase
-      .channel(`call:${currentCallId}`)
-      .send({
-        type: 'broadcast',
-        event: 'chat',
-        payload: newMessage
-      });
+    const channel = supabase.channel(`call:${currentCallId}`);
+    channel.send({
+      type: 'broadcast',
+      event: 'chat',
+      payload: newMessage
+    });
   };
 
   // Function to send emoji reaction
@@ -193,18 +192,17 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (!user || !currentCallId) return;
     
     // Send emoji notification via Supabase Realtime
-    supabase
-      .channel(`call:${currentCallId}`)
-      .send({
-        type: 'broadcast',
-        event: 'emoji',
-        payload: {
-          userId: user.id,
-          userName: profile?.name || 'User',
-          emoji: emoji,
-          timestamp: new Date()
-        }
-      });
+    const channel = supabase.channel(`call:${currentCallId}`);
+    channel.send({
+      type: 'broadcast',
+      event: 'emoji',
+      payload: {
+        userId: user.id,
+        userName: profile?.name || 'User',
+        emoji: emoji,
+        timestamp: new Date()
+      }
+    });
       
     // Show a toast for the sent emoji
     toast(`You sent ${emoji}`);
@@ -243,18 +241,21 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       
       if (groupMembers && groupMembers.length > 0) {
         // Notify group members about the call via Supabase Realtime
-        const channel = supabase
-          .channel(`group:${groupId}`)
-          .send({
-            type: 'broadcast',
-            event: 'call_started',
-            payload: {
-              callId: callId,
-              groupId: groupId,
-              callerId: user.id,
-              callerName: profile?.name || 'User'
-            }
-          });
+        const channel = supabase.channel(`group:${groupId}`);
+        
+        // Send the notification and then subscribe
+        await channel.send({
+          type: 'broadcast',
+          event: 'call_started',
+          payload: {
+            callId: callId,
+            groupId: groupId,
+            callerId: user.id,
+            callerName: profile?.name || 'User'
+          }
+        });
+        
+        channel.subscribe();
       }
       
       return callId;
@@ -298,20 +299,19 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         });
       
       // Notify other participants about joining
-      const channel = supabase
-        .channel(`call:${callId}`);
+      const channel = supabase.channel(`call:${callId}`);
       
-      channel
-        .send({
-          type: 'broadcast',
-          event: 'user_joined',
-          payload: {
-            userId: user.id,
-            userName: profile?.name || 'User',
-            timestamp: new Date()
-          }
-        });
-        
+      // Send event and then subscribe to the channel
+      await channel.send({
+        type: 'broadcast',
+        event: 'user_joined',
+        payload: {
+          userId: user.id,
+          userName: profile?.name || 'User',
+          timestamp: new Date()
+        }
+      });
+      
       // Subscribe to call channel for messages and events
       channel
         .on('broadcast', { event: 'chat' }, (payload) => {
@@ -385,20 +385,20 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         });
       
       // Notify other participants about joining
-      const channel = supabase
-        .channel(`call:${callId}`);
+      const channel = supabase.channel(`call:${callId}`);
       
-      channel
-        .send({
-          type: 'broadcast',
-          event: 'user_joined',
-          payload: {
-            userId: user.id,
-            userName: profile?.name || 'User',
-            timestamp: new Date()
-          }
-        })
-        .subscribe();
+      // Send event and then subscribe to the channel
+      await channel.send({
+        type: 'broadcast',
+        event: 'user_joined',
+        payload: {
+          userId: user.id,
+          userName: profile?.name || 'User',
+          timestamp: new Date()
+        }
+      });
+      
+      channel.subscribe();
       
       return true;
     } catch (error) {
@@ -414,16 +414,19 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       // Nothing needs to be done in the database for declining
       // Just notify the caller that we declined
       if (user) {
-        supabase
-          .channel(`call:${callId}`)
-          .send({
-            type: 'broadcast',
-            event: 'call_declined',
-            payload: {
-              userId: user.id,
-              userName: profile?.name || 'User'
-            }
-          });
+        const channel = supabase.channel(`call:${callId}`);
+        
+        // Send event and then subscribe to the channel
+        await channel.send({
+          type: 'broadcast',
+          event: 'call_declined',
+          payload: {
+            userId: user.id,
+            userName: profile?.name || 'User'
+          }
+        });
+        
+        channel.subscribe();
       }
       
       toast.info('Call declined');
@@ -442,17 +445,20 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       console.log("Leaving call, stopping all connections and streams");
       
       // Send leave notification
-      supabase
-        .channel(`call:${currentCallId}`)
-        .send({
-          type: 'broadcast',
-          event: 'user_left',
-          payload: {
-            userId: user.id,
-            userName: profile?.name || 'User',
-            timestamp: new Date()
-          }
-        });
+      const channel = supabase.channel(`call:${currentCallId}`);
+      
+      // Send the event and then subscribe to the channel
+      await channel.send({
+        type: 'broadcast',
+        event: 'user_left',
+        payload: {
+          userId: user.id,
+          userName: profile?.name || 'User',
+          timestamp: new Date()
+        }
+      });
+      
+      channel.subscribe();
       
       // Update participation record
       await supabase
