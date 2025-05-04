@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layouts/DashboardLayout';
@@ -6,12 +5,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useVoiceCall } from '@/contexts/VoiceCallContext';
 import { CallControls } from '@/components/voice-call/CallControls';
 import { ChatPanel } from '@/components/voice-call/ChatPanel';
-import { ParticipantList } from '@/components/voice-call/ParticipantList';
-import { ScreenShareView } from '@/components/voice-call/ScreenShareView';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { LoaderCircle, PhoneCall, Mic, MicOff } from 'lucide-react';
@@ -29,6 +26,15 @@ interface CallInfo {
   caller_pic: string | null;
 }
 
+interface Participant {
+  id: string;
+  user_id: string;
+  user_name: string;
+  profile_pic: string | null;
+  emoji?: string;
+  emojiTimestamp?: number;
+}
+
 const GroupVoiceCall: React.FC = () => {
   const { groupId } = useParams<{ groupId: string }>();
   const { user, profile } = useAuth();
@@ -37,7 +43,6 @@ const GroupVoiceCall: React.FC = () => {
     localStream,
     remoteStreams,
     isAudioEnabled,
-    isSharingScreen,
     initializeLocalStream,
     joinGroupCall,
     startGroupCall,
@@ -47,12 +52,12 @@ const GroupVoiceCall: React.FC = () => {
 
   const [loading, setLoading] = useState(false);
   const [showChat, setShowChat] = useState(false);
-  const [showParticipants, setShowParticipants] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [groupInfo, setGroupInfo] = useState<GroupInfo | null>(null);
   const [incomingCall, setIncomingCall] = useState<CallInfo | null>(null);
   const [callInProgress, setCallInProgress] = useState(false);
-  const [screenShareStream, setScreenShareStream] = useState<MediaStream | null>(null);
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [emojis, setEmojis] = useState<{[key: string]: {emoji: string, timestamp: number}}>({}); 
 
   // Get group info
   useEffect(() => {
@@ -83,6 +88,13 @@ const GroupVoiceCall: React.FC = () => {
     if (callInProgress && !localStream) {
       initializeLocalStream();
     }
+    
+    return () => {
+      // Stop using the microphone when component unmounts
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
+    };
   }, [callInProgress, localStream, initializeLocalStream]);
 
   // Listen for incoming calls
@@ -155,23 +167,86 @@ const GroupVoiceCall: React.FC = () => {
     checkActiveCall();
   }, [groupId, callInProgress]);
 
-  // Update screen share stream from remote or local
-  useEffect(() => {
-    if (isSharingScreen && localStream && localStream.getVideoTracks().length > 0) {
-      setScreenShareStream(localStream);
-      return;
-    }
+  // Fetch participants
+  const fetchParticipants = useCallback(async () => {
+    if (!currentCallId) return;
     
-    // Check if any remote stream has video
-    let remoteScreenShare = null;
-    remoteStreams.forEach((stream) => {
-      if (stream.getVideoTracks().length > 0) {
-        remoteScreenShare = stream;
+    try {
+      // We need to perform a complex join since voice_call_participants isn't in the TypeScript types yet
+      const { data, error } = await supabase
+        .from('voice_call_participants')
+        .select('id, user_id, joined_at, left_at')
+        .eq('call_id', currentCallId)
+        .is('left_at', null);
+      
+      if (error) {
+        console.error('Error fetching participants:', error);
+        return;
       }
-    });
+      
+      // Get user profiles for each participant
+      if (data && data.length > 0) {
+        const userIds = data.map(p => p.user_id);
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, name, profile_pic')
+          .in('id', userIds);
+          
+        const formattedParticipants: Participant[] = data.map(p => ({
+          id: p.id,
+          user_id: p.user_id,
+          user_name: profiles?.find(profile => profile.id === p.user_id)?.name || 'Unknown User',
+          profile_pic: profiles?.find(profile => profile.id === p.user_id)?.profile_pic || null
+        }));
+        
+        setParticipants(formattedParticipants);
+      } else {
+        setParticipants([]);
+      }
+    } catch (error) {
+      console.error('Error in participants fetch:', error);
+    }
+  }, [currentCallId]);
+
+  // Listen for participant join/leave events
+  useEffect(() => {
+    if (!currentCallId) return;
     
-    setScreenShareStream(remoteScreenShare);
-  }, [remoteStreams, localStream, isSharingScreen]);
+    const channel = supabase
+      .channel(`call:${currentCallId}`)
+      .on('broadcast', { event: 'user_joined' }, () => {
+        fetchParticipants();
+      })
+      .on('broadcast', { event: 'user_left' }, () => {
+        fetchParticipants();
+      })
+      .on('broadcast', { event: 'emoji' }, (payload) => {
+        // Store emoji with timestamp for display
+        setEmojis(prev => ({
+          ...prev,
+          [payload.payload.userId]: { 
+            emoji: payload.payload.emoji,
+            timestamp: Date.now()
+          }
+        }));
+        
+        // Remove emoji after 5 seconds
+        setTimeout(() => {
+          setEmojis(prev => {
+            const newEmojis = { ...prev };
+            delete newEmojis[payload.payload.userId];
+            return newEmojis;
+          });
+        }, 5000);
+      })
+      .subscribe();
+      
+    fetchParticipants();
+    
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentCallId, fetchParticipants]);
 
   // Handle starting a new call
   const handleStartCall = async () => {
@@ -277,18 +352,12 @@ const GroupVoiceCall: React.FC = () => {
             </div>
             
             <div className="flex-1 flex">
-              <div className={`flex-1 p-4 ${showChat || showParticipants ? 'lg:pr-0' : ''}`}>
+              <div className={`flex-1 p-4 ${showChat ? 'lg:pr-0' : ''}`}>
                 <div className="h-full flex flex-col">
-                  {/* Screen share area */}
-                  {screenShareStream && (
-                    <div className="mb-4">
-                      <ScreenShareView stream={screenShareStream} />
-                    </div>
-                  )}
-                  
-                  {/* Call participants audio visualization */}
+                  {/* Call participants display */}
                   <div className="flex-1 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    <Card className="bg-gray-50 dark:bg-gray-800 flex flex-col items-center justify-center p-4">
+                    {/* Current user */}
+                    <Card className="bg-gray-50 dark:bg-gray-800 flex flex-col items-center justify-center p-4 relative">
                       <Avatar className="h-16 w-16 mb-2">
                         {profile?.profile_pic ? (
                           <AvatarImage src={profile.profile_pic} alt={profile.name} />
@@ -304,42 +373,59 @@ const GroupVoiceCall: React.FC = () => {
                           <MicOff className="h-5 w-5 text-red-500" />
                         )}
                       </div>
+                      
+                      {/* Emoji display for current user */}
+                      {emojis[user?.id ?? ''] && (
+                        <div className="absolute -top-2 -right-2 bg-white dark:bg-gray-700 rounded-full h-10 w-10 flex items-center justify-center text-2xl shadow-md border border-gray-200 dark:border-gray-600">
+                          {emojis[user?.id ?? ''].emoji}
+                        </div>
+                      )}
                     </Card>
                     
-                    {/* Audio visualization for other participants */}
-                    {Array.from(remoteStreams).map(([userId, stream]) => (
-                      <div key={userId} className="w-full">
-                        <Card className="bg-gray-50 dark:bg-gray-800 flex flex-col items-center justify-center p-4 h-full">
-                          <div className="flex items-center flex-col">
-                            <Avatar className="h-16 w-16 mb-2">
-                              <AvatarFallback>U</AvatarFallback>
-                            </Avatar>
-                            <p className="font-medium">User</p>
-                            <div className="mt-2">
-                              {stream.getAudioTracks().some(track => track.enabled) ? (
-                                <Mic className="h-5 w-5 text-green-500" />
-                              ) : (
-                                <MicOff className="h-5 w-5 text-red-500" />
-                              )}
-                            </div>
+                    {/* Other participants */}
+                    {participants
+                      .filter(p => p.user_id !== user?.id)
+                      .map((participant) => (
+                        <Card 
+                          key={participant.id} 
+                          className="bg-gray-50 dark:bg-gray-800 flex flex-col items-center justify-center p-4 relative"
+                        >
+                          <Avatar className="h-16 w-16 mb-2">
+                            {participant.profile_pic ? (
+                              <AvatarImage src={participant.profile_pic} alt={participant.user_name} />
+                            ) : (
+                              <AvatarFallback>
+                                {participant.user_name?.charAt(0) || 'U'}
+                              </AvatarFallback>
+                            )}
+                          </Avatar>
+                          <p className="font-medium">{participant.user_name}</p>
+                          <div className="mt-2">
+                            {remoteStreams.has(participant.user_id) && 
+                              remoteStreams.get(participant.user_id)?.getAudioTracks().some(track => track.enabled) ? (
+                              <Mic className="h-5 w-5 text-green-500" />
+                            ) : (
+                              <MicOff className="h-5 w-5 text-red-500" />
+                            )}
                           </div>
+                          
+                          {/* Emoji display for this participant */}
+                          {emojis[participant.user_id] && (
+                            <div className="absolute -top-2 -right-2 bg-white dark:bg-gray-700 rounded-full h-10 w-10 flex items-center justify-center text-2xl shadow-md border border-gray-200 dark:border-gray-600">
+                              {emojis[participant.user_id].emoji}
+                            </div>
+                          )}
                         </Card>
-                      </div>
-                    ))}
+                      ))
+                    }
                   </div>
                 </div>
               </div>
 
-              {/* Right sidebar for chat or participants */}
+              {/* Right sidebar for chat */}
               {showChat && (
                 <div className="w-full lg:w-80 h-full">
                   <ChatPanel />
-                </div>
-              )}
-
-              {showParticipants && !showChat && currentCallId && (
-                <div className="w-full lg:w-80 h-full">
-                  <ParticipantList callId={currentCallId} />
                 </div>
               )}
             </div>
@@ -349,8 +435,6 @@ const GroupVoiceCall: React.FC = () => {
               <CallControls
                 showChat={showChat}
                 setShowChat={setShowChat}
-                showParticipants={showParticipants}
-                setShowParticipants={setShowParticipants}
                 showEmojiPicker={showEmojiPicker}
                 setShowEmojiPicker={setShowEmojiPicker}
               />
@@ -359,11 +443,8 @@ const GroupVoiceCall: React.FC = () => {
         ) : (
           <div className="flex flex-col items-center justify-center py-12">
             <Card className="w-full max-w-md">
-              <CardHeader className="text-center">
-                <CardTitle>Group Voice Call</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col items-center">
-                <Avatar className="h-20 w-20 mb-4">
+              <div className="p-6 text-center">
+                <Avatar className="h-20 w-20 mb-4 mx-auto">
                   {groupInfo?.profile_pic ? (
                     <AvatarImage src={groupInfo.profile_pic} alt={groupInfo.name} />
                   ) : (
@@ -374,7 +455,7 @@ const GroupVoiceCall: React.FC = () => {
                 </Avatar>
                 <h2 className="text-2xl font-bold mb-1">{groupInfo?.name}</h2>
                 <p className="text-gray-500 mb-6">Start a voice call with this group</p>
-                <div className="flex gap-4">
+                <div className="flex gap-4 justify-center">
                   <Button 
                     onClick={handleStartCall} 
                     className="flex items-center gap-2"
@@ -395,7 +476,7 @@ const GroupVoiceCall: React.FC = () => {
                     Join Existing Call
                   </Button>
                 </div>
-              </CardContent>
+              </div>
             </Card>
           </div>
         )}

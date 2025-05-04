@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
@@ -193,6 +192,8 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     
     // Send emoji notification via Supabase Realtime
     const channel = supabase.channel(`call:${currentCallId}`);
+    
+    // Send event
     channel.send({
       type: 'broadcast',
       event: 'emoji',
@@ -243,7 +244,7 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         // Notify group members about the call via Supabase Realtime
         const channel = supabase.channel(`group:${groupId}`);
         
-        // Send the notification and then subscribe
+        // Send the notification
         await channel.send({
           type: 'broadcast',
           event: 'call_started',
@@ -255,6 +256,7 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           }
         });
         
+        // Subscribe to the channel
         channel.subscribe();
       }
       
@@ -301,7 +303,7 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       // Notify other participants about joining
       const channel = supabase.channel(`call:${callId}`);
       
-      // Send event and then subscribe to the channel
+      // Send event
       await channel.send({
         type: 'broadcast',
         event: 'user_joined',
@@ -311,6 +313,9 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           timestamp: new Date()
         }
       });
+      
+      // Subscribe to the channel
+      channel.subscribe();
       
       // Subscribe to call channel for messages and events
       channel
@@ -333,8 +338,7 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           if (payload.payload.userId !== user.id) {
             toast.info(`${payload.payload.userName} left the call`);
           }
-        })
-        .subscribe();
+        });
       
       console.log("Joined call:", callId);
       toast.success("Call joined successfully");
@@ -387,7 +391,7 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       // Notify other participants about joining
       const channel = supabase.channel(`call:${callId}`);
       
-      // Send event and then subscribe to the channel
+      // Send event
       await channel.send({
         type: 'broadcast',
         event: 'user_joined',
@@ -398,6 +402,7 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
       });
       
+      // Subscribe to the channel
       channel.subscribe();
       
       return true;
@@ -416,7 +421,7 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (user) {
         const channel = supabase.channel(`call:${callId}`);
         
-        // Send event and then subscribe to the channel
+        // Send event
         await channel.send({
           type: 'broadcast',
           event: 'call_declined',
@@ -426,6 +431,7 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           }
         });
         
+        // Subscribe to the channel
         channel.subscribe();
       }
       
@@ -447,7 +453,7 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       // Send leave notification
       const channel = supabase.channel(`call:${currentCallId}`);
       
-      // Send the event and then subscribe to the channel
+      // Send the event
       await channel.send({
         type: 'broadcast',
         event: 'user_left',
@@ -458,6 +464,7 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
       });
       
+      // Subscribe to the channel
       channel.subscribe();
       
       // Update participation record

@@ -9,7 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useVoiceCall } from '@/contexts/VoiceCallContext';
 
 export const ChatPanel: React.FC = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { messages, sendChatMessage } = useVoiceCall();
   const [message, setMessage] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -49,9 +49,13 @@ export const ChatPanel: React.FC = () => {
               <div className="flex max-w-[80%]">
                 {msg.senderId !== user?.id && (
                   <Avatar className="h-8 w-8 mr-2">
-                    <AvatarFallback>
-                      {msg.senderName.charAt(0).toUpperCase()}
-                    </AvatarFallback>
+                    {profile?.profile_pic ? (
+                      <AvatarImage src={profile.profile_pic} alt={msg.senderName} />
+                    ) : (
+                      <AvatarFallback>
+                        {msg.senderName.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    )}
                   </Avatar>
                 )}
                 <div>
