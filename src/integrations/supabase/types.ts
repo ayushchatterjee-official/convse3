@@ -51,6 +51,38 @@ export type Database = {
           },
         ]
       }
+      group_voice_calls: {
+        Row: {
+          active: boolean
+          created_at: string
+          group_id: string
+          id: string
+          started_by: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          group_id: string
+          id?: string
+          started_by: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          group_id?: string
+          id?: string
+          started_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_voice_calls_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       groups: {
         Row: {
           code: string
@@ -261,6 +293,38 @@ export type Database = {
           last_activity?: string
         }
         Relationships: []
+      }
+      voice_call_participants: {
+        Row: {
+          call_id: string
+          id: string
+          joined_at: string
+          left_at: string | null
+          user_id: string
+        }
+        Insert: {
+          call_id: string
+          id?: string
+          joined_at?: string
+          left_at?: string | null
+          user_id: string
+        }
+        Update: {
+          call_id?: string
+          id?: string
+          joined_at?: string
+          left_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voice_call_participants_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "group_voice_calls"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

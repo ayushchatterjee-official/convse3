@@ -26,17 +26,10 @@ export const ParticipantList: React.FC<{
   // Fetch participants
   const fetchParticipants = useCallback(async () => {
     try {
+      // We need to perform a complex join since voice_call_participants isn't in the TypeScript types yet
       const { data, error } = await supabase
         .from('voice_call_participants')
-        .select(`
-          id, 
-          user_id, 
-          joined_at,
-          profiles:user_id (
-            name,
-            profile_pic
-          )
-        `)
+        .select('id, user_id, joined_at, left_at')
         .eq('call_id', callId)
         .is('left_at', null);
       
@@ -45,15 +38,26 @@ export const ParticipantList: React.FC<{
         return;
       }
       
-      const formattedParticipants: Participant[] = data.map(p => ({
-        id: p.id,
-        user_id: p.user_id,
-        user_name: p.profiles?.name || 'Unknown User',
-        profile_pic: p.profiles?.profile_pic || null,
-        joined_at: p.joined_at
-      }));
-      
-      setParticipants(formattedParticipants);
+      // Get user profiles for each participant
+      if (data && data.length > 0) {
+        const userIds = data.map(p => p.user_id);
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, name, profile_pic')
+          .in('id', userIds);
+          
+        const formattedParticipants: Participant[] = data.map(p => ({
+          id: p.id,
+          user_id: p.user_id,
+          user_name: profiles?.find(profile => profile.id === p.user_id)?.name || 'Unknown User',
+          profile_pic: profiles?.find(profile => profile.id === p.user_id)?.profile_pic || null,
+          joined_at: p.joined_at
+        }));
+        
+        setParticipants(formattedParticipants);
+      } else {
+        setParticipants([]);
+      }
     } catch (error) {
       console.error('Error in participants fetch:', error);
     }

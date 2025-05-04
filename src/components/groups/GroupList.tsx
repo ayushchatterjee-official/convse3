@@ -5,7 +5,6 @@
 import React from 'react';
 import { useGroupList } from '@/hooks/useGroupList';
 import { GroupCard } from './GroupCard';
-import { GroupActions } from './GroupActions';
 
 export const GroupList: React.FC = () => {
   const { groups, loading, error } = useGroupList();
@@ -44,3 +43,5 @@ export const GroupList: React.FC = () => {
     </div>
   );
 };
+
+export default GroupList;

@@ -217,23 +217,19 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
     
     try {
-      // Insert a new call record
-      const { data: callData, error } = await supabase
-        .from('group_voice_calls')
-        .insert({
-          group_id: groupId,
-          started_by: user.id,
-          active: true
-        })
-        .select('*')
-        .single();
-        
+      // Insert a new call record using raw SQL since TypeScript doesn't have the new tables yet
+      const { data, error } = await supabase.rpc('create_group_call', {
+        p_group_id: groupId,
+        p_user_id: user.id
+      });
+      
       if (error) {
         console.error("Call creation error:", error);
         throw error;
       }
       
-      setCurrentCallId(callData.id);
+      const callId = data;
+      setCurrentCallId(callId);
       setCurrentGroupId(groupId);
       
       // Get group members to notify them about the call
@@ -251,7 +247,7 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             type: 'broadcast',
             event: 'call_started',
             payload: {
-              callId: callData.id,
+              callId: callId,
               groupId: groupId,
               callerId: user.id,
               callerName: profile?.name || 'User'
@@ -259,7 +255,7 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           });
       }
       
-      return callData.id;
+      return callId;
     } catch (error) {
       console.error('Error starting call:', error);
       toast.error('Failed to start call');
@@ -275,15 +271,10 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
     
     try {
-      // Find active call for this group
-      const { data: callData, error } = await supabase
-        .from('group_voice_calls')
-        .select('id')
-        .eq('group_id', groupId)
-        .eq('active', true)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+      // Find active call for this group using raw SQL
+      const { data: callData, error } = await supabase.rpc('get_active_group_call', {
+        p_group_id: groupId
+      });
       
       if (error || !callData) {
         console.error('No active call found for this group');
@@ -291,21 +282,20 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         return false;
       }
       
-      setCurrentCallId(callData.id);
+      const callId = callData;
+      
+      setCurrentCallId(callId);
       setCurrentGroupId(groupId);
       
-      // Insert participant into call_participants table
-      await supabase
-        .from('voice_call_participants')
-        .insert({
-          call_id: callData.id,
-          user_id: user.id
-        })
-        .select();
+      // Insert participant into call_participants table using raw SQL
+      await supabase.rpc('join_voice_call', {
+        p_call_id: callId,
+        p_user_id: user.id
+      });
       
       // Notify other participants about joining
       supabase
-        .channel(`call:${callData.id}`)
+        .channel(`call:${callId}`)
         .send({
           type: 'broadcast',
           event: 'user_joined',
@@ -317,7 +307,7 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         });
       
       // Subscribe to call channel for messages and events
-      const callChannel = supabase.channel(`call:${callData.id}`);
+      const callChannel = supabase.channel(`call:${callId}`);
       
       callChannel
         .on('broadcast', { event: 'chat' }, (payload) => {
@@ -342,7 +332,7 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         })
         .subscribe();
       
-      console.log("Joined call:", callData.id);
+      console.log("Joined call:", callId);
       toast.success("Call joined successfully");
       return true;
     } catch (error) {
@@ -360,17 +350,17 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
     
     try {
-      // Get call details to find group ID
-      const { data: callData, error } = await supabase
-        .from('group_voice_calls')
-        .select('group_id')
-        .eq('id', callId)
-        .single();
+      // Get call details to find group ID using raw SQL
+      const { data: callData, error } = await supabase.rpc('get_call_group_id', {
+        p_call_id: callId
+      });
         
       if (error || !callData) {
         toast.error('Call not found or has ended');
         return false;
       }
+      
+      const groupId = callData;
       
       // Initialize audio stream
       const streamInitialized = await initializeLocalStream();
@@ -380,16 +370,13 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       
       // Set current call and group IDs
       setCurrentCallId(callId);
-      setCurrentGroupId(callData.group_id);
+      setCurrentGroupId(groupId);
       
-      // Insert participant into call_participants table
-      await supabase
-        .from('voice_call_participants')
-        .insert({
-          call_id: callId,
-          user_id: user.id
-        })
-        .select();
+      // Insert participant into call_participants table using raw SQL
+      await supabase.rpc('join_voice_call', {
+        p_call_id: callId,
+        p_user_id: user.id
+      });
       
       // Notify other participants about joining
       supabase
@@ -459,12 +446,11 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           }
         });
       
-      // Update participation record
-      await supabase
-        .from('voice_call_participants')
-        .update({ left_at: new Date().toISOString() })
-        .eq('call_id', currentCallId)
-        .eq('user_id', user.id);
+      // Update participation record using raw SQL
+      await supabase.rpc('leave_voice_call', {
+        p_call_id: currentCallId,
+        p_user_id: user.id
+      });
       
       // Close all peer connections
       peerConnections.current.forEach((peer) => {
@@ -507,8 +493,8 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const iceServers = {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun1.google.com:19302' },
+        { urls: 'stun:stun2.google.com:19302' },
       ],
     };
     
