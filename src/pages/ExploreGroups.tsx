@@ -16,7 +16,7 @@ import {
   DialogFooter 
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Loader2, Search, Lock } from 'lucide-react';
+import { Loader2, Search } from 'lucide-react';
 
 interface Group {
   id: string;
@@ -35,9 +35,10 @@ const ExploreGroups = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [groupCode, setGroupCode] = useState('');
   
-  const [joinDialog, setJoinDialog] = useState<{open: boolean, group: Group | null}>({
+  const [joinDialog, setJoinDialog] = useState<{open: boolean, group: Group | null, isInvited: boolean}>({
     open: false,
-    group: null
+    group: null,
+    isInvited: false
   });
   const [password, setPassword] = useState('');
   const [joining, setJoining] = useState(false);
@@ -75,10 +76,11 @@ const ExploreGroups = () => {
       
       const userGroupIds = (memberships || []).map(m => m.group_id);
       
-      // Then get all groups, filtering out the ones the user is already in
+      // Then get only public groups, filtering out the ones the user is already in
       const { data, error } = await supabase
         .from('groups')
-        .select('*');
+        .select('*')
+        .eq('is_private', false); // Only fetch public groups
       
       if (error) throw error;
       
@@ -113,18 +115,29 @@ const ExploreGroups = () => {
         toast.error('Invalid group code');
         return;
       }
+
+      // Check if user has an invitation for this group
+      const { data: inviteData } = await supabase
+        .from('group_invitations')
+        .select('*')
+        .eq('group_id', groupData.id)
+        .eq('invitee_id', user?.id)
+        .eq('status', 'pending')
+        .single();
       
-      // If the group is private, prompt for password
-      if (groupData.is_private) {
-        setJoinDialog({
-          open: true,
-          group: groupData
-        });
+      // If the group is private and user doesn't have an invitation, show error
+      if (groupData.is_private && !inviteData) {
+        toast.error('This is a private group. You need an invitation to join.');
+        setJoining(false);
         return;
       }
       
-      // For public group, join directly
-      await joinGroup(groupData.id);
+      // For private group with invitation or public group, prompt for confirmation
+      setJoinDialog({
+        open: true,
+        group: groupData,
+        isInvited: !!inviteData
+      });
     } catch (error) {
       console.error('Error joining group by code:', error);
       toast.error('Failed to join group');
@@ -133,12 +146,32 @@ const ExploreGroups = () => {
     }
   };
   
-  const handleOpenJoinDialog = (group: Group) => {
-    setJoinDialog({
-      open: true,
-      group
-    });
-    setPassword('');
+  const handleOpenJoinDialog = async (group: Group) => {
+    try {
+      // Check if user has an invitation for this group
+      const { data: inviteData } = await supabase
+        .from('group_invitations')
+        .select('*')
+        .eq('group_id', group.id)
+        .eq('invitee_id', user?.id)
+        .eq('status', 'pending')
+        .single();
+
+      setJoinDialog({
+        open: true,
+        group,
+        isInvited: !!inviteData
+      });
+      setPassword('');
+    } catch (error) {
+      // If no invitation found, proceed normally
+      setJoinDialog({
+        open: true,
+        group,
+        isInvited: false
+      });
+      setPassword('');
+    }
   };
   
   const handleJoinWithPassword = async () => {
@@ -146,8 +179,8 @@ const ExploreGroups = () => {
     
     setJoining(true);
     try {
-      // For private group, check password
-      if (joinDialog.group.is_private) {
+      // For private group, check password unless user has an invitation
+      if (joinDialog.group.is_private && !joinDialog.isInvited) {
         const { data, error } = await supabase
           .from('groups')
           .select('id')
@@ -157,12 +190,24 @@ const ExploreGroups = () => {
         
         if (error || !data) {
           toast.error('Incorrect password');
+          setJoining(false);
           return;
         }
       }
       
       await joinGroup(joinDialog.group.id);
-      setJoinDialog({ open: false, group: null });
+      
+      // If joining from invitation, update the invitation status
+      if (joinDialog.isInvited) {
+        await supabase
+          .from('group_invitations')
+          .update({ status: 'accepted' })
+          .eq('group_id', joinDialog.group.id)
+          .eq('invitee_id', user?.id)
+          .eq('status', 'pending');
+      }
+      
+      setJoinDialog({ open: false, group: null, isInvited: false });
     } catch (error) {
       console.error('Error joining group:', error);
       toast.error('Failed to join group');
@@ -262,9 +307,6 @@ const ExploreGroups = () => {
                 <CardContent className="pt-4">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="font-medium text-lg">{group.name}</h3>
-                    {group.is_private && (
-                      <Lock className="h-4 w-4 text-gray-500" />
-                    )}
                   </div>
                   <p className="text-sm text-gray-500 mb-4">
                     Group ID: {group.code}
@@ -281,18 +323,18 @@ const ExploreGroups = () => {
           </div>
         ) : (
           <div className="text-center p-12 border rounded-lg bg-white">
-            <p className="text-gray-500">No groups available to join</p>
+            <p className="text-gray-500">No public groups available to join</p>
           </div>
         )}
         
         {/* Join Group Dialog */}
-        <Dialog open={joinDialog.open} onOpenChange={(open) => setJoinDialog({ open, group: joinDialog.group })}>
+        <Dialog open={joinDialog.open} onOpenChange={(open) => setJoinDialog({ ...joinDialog, open })}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Join {joinDialog.group?.name}</DialogTitle>
             </DialogHeader>
             
-            {joinDialog.group?.is_private ? (
+            {joinDialog.group?.is_private && !joinDialog.isInvited ? (
               <div className="py-4">
                 <p className="mb-4">This is a private group. Please enter the password to join.</p>
                 <Input
@@ -304,14 +346,29 @@ const ExploreGroups = () => {
               </div>
             ) : (
               <div className="py-4">
-                <p>Are you sure you want to join this group?</p>
+                <p>
+                  {joinDialog.isInvited 
+                    ? "You've been invited to join this group." 
+                    : "Are you sure you want to join this group?"}
+                </p>
+                {joinDialog.isInvited && joinDialog.group?.is_private && (
+                  <div className="mt-4">
+                    <Input
+                      type="password"
+                      placeholder="Group password"
+                      value="********"
+                      disabled
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Password will be handled automatically</p>
+                  </div>
+                )}
               </div>
             )}
             
             <DialogFooter>
               <Button
                 variant="outline"
-                onClick={() => setJoinDialog({ open: false, group: null })}
+                onClick={() => setJoinDialog({ open: false, group: null, isInvited: false })}
               >
                 Cancel
               </Button>

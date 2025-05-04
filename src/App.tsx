@@ -7,6 +7,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { VoiceCallProvider } from "./contexts/VoiceCallContext";
+import { useEffect } from "react";
+import { setupNotificationsSystem } from "./db/setupNotificationsSystem";
 
 // Pages
 import Index from "./pages/Index";
@@ -22,33 +24,40 @@ import GroupVoiceCall from "./pages/GroupVoiceCall";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <BrowserRouter>
-      <ThemeProvider defaultTheme="light" storageKey="connectiverse-theme">
-        <AuthProvider>
-          <VoiceCallProvider>
-            <TooltipProvider>
-              <Toaster />
-              <Sonner />
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/auth" element={<Auth />} />
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/chat/:groupId" element={<ChatRoom />} />
-                <Route path="/voice-call/:groupId" element={<GroupVoiceCall />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/explore" element={<ExploreGroups />} />
-                <Route path="/admin" element={<Admin />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </TooltipProvider>
-          </VoiceCallProvider>
-        </AuthProvider>
-      </ThemeProvider>
-    </BrowserRouter>
-  </QueryClientProvider>
-);
+const App = () => {
+  useEffect(() => {
+    // This will attempt to create the notifications tables if they don't exist
+    setupNotificationsSystem().catch(console.error);
+  }, []);
+  
+  return (
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <ThemeProvider defaultTheme="light" storageKey="connectiverse-theme">
+          <AuthProvider>
+            <VoiceCallProvider>
+              <TooltipProvider>
+                <Toaster />
+                <Sonner />
+                <Routes>
+                  <Route path="/" element={<Index />} />
+                  <Route path="/auth" element={<Auth />} />
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/chat/:groupId" element={<ChatRoom />} />
+                  <Route path="/voice-call/:groupId" element={<GroupVoiceCall />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="/explore" element={<ExploreGroups />} />
+                  <Route path="/admin" element={<Admin />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </TooltipProvider>
+            </VoiceCallProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </BrowserRouter>
+    </QueryClientProvider>
+  );
+};
 
 export default App;

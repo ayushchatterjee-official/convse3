@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import {
@@ -19,6 +19,7 @@ import {
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Sidebar } from '@/components/ui/sidebar';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { NotificationDropdown } from '@/components/notification/NotificationDropdown';
 import {
   User,
   Home,
@@ -27,8 +28,7 @@ import {
   LogOut,
   ShieldCheck,
   Menu,
-  MessageSquare,
-  Video
+  MessageSquare
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -44,6 +44,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const { user, profile, isAdmin, signOut } = useAuth();
   const isMobile = useIsMobile();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleSignOut = async () => {
     try {
@@ -53,6 +54,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     } catch (error) {
       toast.error('Failed to sign out');
     }
+  };
+
+  const isActiveRoute = (path: string) => {
+    return location.pathname === path || location.pathname.startsWith(`${path}/`);
   };
 
   const navItems = [
@@ -65,12 +70,6 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       label: 'Explore',
       href: '/explore',
       icon: <Search className="mr-2 h-4 w-4" />,
-    },
-    {
-      label: 'Video Call',
-      href: '/video-call',
-      icon: <Video className="mr-2 h-4 w-4" />,
-      highlight: true,
     },
     {
       label: 'Profile',
@@ -99,8 +98,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           key={item.href}
           to={item.href}
           className={`flex items-center px-3 py-2 text-sm rounded-md transition-colors
-            ${item.highlight 
-              ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700'
+            ${isActiveRoute(item.href) 
+              ? 'bg-blue-500 text-white'
               : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}
         >
           {item.icon}
@@ -199,7 +198,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
-              <ThemeToggle />
+              <NotificationDropdown />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="rounded-full">
@@ -222,10 +221,6 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                   <DropdownMenuItem onClick={() => navigate('/profile')}>
                     <User className="mr-2 h-4 w-4" />
                     Profile
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/video-call')}>
-                    <Video className="mr-2 h-4 w-4" />
-                    Video Call
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate('/settings')}>
                     <Settings className="mr-2 h-4 w-4" />
@@ -253,12 +248,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           <header className="border-b py-3 px-4 flex items-center justify-end dark:border-gray-800">
             <div className="flex items-center gap-2">
               <Link to="/dashboard" className="px-3 py-2 text-sm rounded-md">
-                <MessageSquare className="h-5 w-5" />
+                <MessageSquare className={`h-5 w-5 ${isActiveRoute('/dashboard') || isActiveRoute('/chat') ? 'text-blue-500' : ''}`} />
               </Link>
               
-              <Link to="/video-call" className="px-3 py-2 text-sm rounded-md">
-                <Video className="h-5 w-5" />
-              </Link>
+              <NotificationDropdown />
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
