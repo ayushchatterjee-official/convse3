@@ -21,6 +21,16 @@ export const useGroupList = () => {
     const fetchGroups = async () => {
       try {
         setLoading(true);
+        
+        // Get current user
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (!user) {
+          setError("Not authenticated");
+          setLoading(false);
+          return;
+        }
+        
         const { data, error } = await supabase
           .from('groups')
           .select(`
@@ -34,7 +44,7 @@ export const useGroupList = () => {
               is_admin
             )
           `)
-          .eq('group_members.user_id', supabase.auth.getUser().then(({ data }) => data.user?.id))
+          .eq('group_members.user_id', user.id)
           .order('created_at', { ascending: false });
           
         if (error) {

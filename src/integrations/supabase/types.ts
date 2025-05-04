@@ -331,8 +331,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_group_call: {
+        Args: { p_group_id: string; p_user_id: string }
+        Returns: string
+      }
       generate_random_code: {
         Args: { length: number }
+        Returns: string
+      }
+      get_active_group_call: {
+        Args: { p_group_id: string }
         Returns: string
       }
       get_active_rooms: {
@@ -344,6 +352,10 @@ export type Database = {
           last_activity: string
           participant_count: number
         }[]
+      }
+      get_call_group_id: {
+        Args: { p_call_id: string }
+        Returns: string
       }
       get_room_join_requests: {
         Args: { room_id_param: string }
@@ -372,6 +384,14 @@ export type Database = {
       }
       handle_join_request: {
         Args: { request_id_param: string; approve: boolean }
+        Returns: boolean
+      }
+      join_voice_call: {
+        Args: { p_call_id: string; p_user_id: string }
+        Returns: string
+      }
+      leave_voice_call: {
+        Args: { p_call_id: string; p_user_id: string }
         Returns: boolean
       }
     }

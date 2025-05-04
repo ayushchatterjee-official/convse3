@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { LoaderCircle, PhoneCall, Mic } from 'lucide-react';
+import { LoaderCircle, PhoneCall, Mic, MicOff } from 'lucide-react';
 
 interface GroupInfo {
   id: string;
@@ -139,13 +139,9 @@ const GroupVoiceCall: React.FC = () => {
     const checkActiveCall = async () => {
       try {
         const { data, error } = await supabase
-          .from('group_voice_calls')
-          .select('id')
-          .eq('group_id', groupId)
-          .eq('active', true)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+          .rpc('get_active_group_call', {
+            p_group_id: groupId
+          });
           
         if (!error && data) {
           // There's an active call in the group

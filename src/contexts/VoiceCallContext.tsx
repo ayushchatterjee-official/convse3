@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
@@ -217,18 +218,19 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
     
     try {
-      // Insert a new call record using raw SQL since TypeScript doesn't have the new tables yet
-      const { data, error } = await supabase.rpc('create_group_call', {
-        p_group_id: groupId,
-        p_user_id: user.id
-      });
+      // Insert a new call record using the database function
+      const { data, error } = await supabase
+        .rpc('create_group_call', {
+          p_group_id: groupId,
+          p_user_id: user.id
+        });
       
       if (error) {
         console.error("Call creation error:", error);
         throw error;
       }
       
-      const callId = data;
+      const callId = data as string;
       setCurrentCallId(callId);
       setCurrentGroupId(groupId);
       
@@ -241,7 +243,7 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       
       if (groupMembers && groupMembers.length > 0) {
         // Notify group members about the call via Supabase Realtime
-        supabase
+        const channel = supabase
           .channel(`group:${groupId}`)
           .send({
             type: 'broadcast',
@@ -271,31 +273,35 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
     
     try {
-      // Find active call for this group using raw SQL
-      const { data: callData, error } = await supabase.rpc('get_active_group_call', {
-        p_group_id: groupId
-      });
+      // Find active call for this group using database function
+      const { data: callData, error } = await supabase
+        .rpc('get_active_group_call', {
+          p_group_id: groupId
+        });
       
       if (error || !callData) {
-        console.error('No active call found for this group');
+        console.error('No active call found for this group', error);
         toast.error('No active call found for this group');
         return false;
       }
       
-      const callId = callData;
+      const callId = callData as string;
       
       setCurrentCallId(callId);
       setCurrentGroupId(groupId);
       
-      // Insert participant into call_participants table using raw SQL
-      await supabase.rpc('join_voice_call', {
-        p_call_id: callId,
-        p_user_id: user.id
-      });
+      // Insert participant into call_participants table
+      await supabase
+        .rpc('join_voice_call', {
+          p_call_id: callId,
+          p_user_id: user.id
+        });
       
       // Notify other participants about joining
-      supabase
-        .channel(`call:${callId}`)
+      const channel = supabase
+        .channel(`call:${callId}`);
+      
+      channel
         .send({
           type: 'broadcast',
           event: 'user_joined',
@@ -305,11 +311,9 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             timestamp: new Date()
           }
         });
-      
+        
       // Subscribe to call channel for messages and events
-      const callChannel = supabase.channel(`call:${callId}`);
-      
-      callChannel
+      channel
         .on('broadcast', { event: 'chat' }, (payload) => {
           if (payload.payload.senderId !== user.id) {
             setMessages(prev => [...prev, payload.payload]);
@@ -350,17 +354,18 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
     
     try {
-      // Get call details to find group ID using raw SQL
-      const { data: callData, error } = await supabase.rpc('get_call_group_id', {
-        p_call_id: callId
-      });
+      // Get call details to find group ID
+      const { data: callData, error } = await supabase
+        .rpc('get_call_group_id', {
+          p_call_id: callId
+        });
         
       if (error || !callData) {
         toast.error('Call not found or has ended');
         return false;
       }
       
-      const groupId = callData;
+      const groupId = callData as string;
       
       // Initialize audio stream
       const streamInitialized = await initializeLocalStream();
@@ -372,15 +377,18 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setCurrentCallId(callId);
       setCurrentGroupId(groupId);
       
-      // Insert participant into call_participants table using raw SQL
-      await supabase.rpc('join_voice_call', {
-        p_call_id: callId,
-        p_user_id: user.id
-      });
+      // Insert participant into call_participants table
+      await supabase
+        .rpc('join_voice_call', {
+          p_call_id: callId,
+          p_user_id: user.id
+        });
       
       // Notify other participants about joining
-      supabase
-        .channel(`call:${callId}`)
+      const channel = supabase
+        .channel(`call:${callId}`);
+      
+      channel
         .send({
           type: 'broadcast',
           event: 'user_joined',
@@ -446,11 +454,12 @@ export const VoiceCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           }
         });
       
-      // Update participation record using raw SQL
-      await supabase.rpc('leave_voice_call', {
-        p_call_id: currentCallId,
-        p_user_id: user.id
-      });
+      // Update participation record
+      await supabase
+        .rpc('leave_voice_call', {
+          p_call_id: currentCallId,
+          p_user_id: user.id
+        });
       
       // Close all peer connections
       peerConnections.current.forEach((peer) => {
