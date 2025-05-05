@@ -60,14 +60,14 @@ export const GroupInviteDialog: React.FC<GroupInviteDialogProps> = ({
         const memberIds = members?.map(m => m.user_id) || [];
         memberIds.push(user?.id || ''); // Add current user to exclude list
 
-        // Get existing invitation recipient IDs
+        // Get existing invitation recipient IDs - use any() as a workaround
         const { data: invitations } = await supabase
-          .from('group_invitations')
+          .from('group_invitations' as any)
           .select('invitee_id')
           .eq('group_id', groupId)
           .eq('status', 'pending');
 
-        const inviteeIds = invitations?.map(i => i.invitee_id) || [];
+        const inviteeIds = invitations?.map((i: any) => i.invitee_id) || [];
         
         // Combine exclusion lists
         const excludeIds = [...new Set([...memberIds, ...inviteeIds])];
@@ -101,28 +101,28 @@ export const GroupInviteDialog: React.FC<GroupInviteDialogProps> = ({
     
     setInviting(inviteeId);
     try {
-      // Create invitation record
+      // Create invitation record - use any() as a workaround
       const { error: inviteError } = await supabase
-        .from('group_invitations')
+        .from('group_invitations' as any)
         .insert({
           group_id: groupId,
           inviter_id: user.id,
           invitee_id: inviteeId,
           status: 'pending'
-        });
+        } as any);
 
       if (inviteError) throw inviteError;
 
-      // Create notification
+      // Create notification - use any() as a workaround
       const { error: notifError } = await supabase
-        .from('notifications')
+        .from('notifications' as any)
         .insert({
           recipient_id: inviteeId,
           sender_id: user.id,
           group_id: groupId,
           type: 'invitation',
           content: `You've been invited to join ${groupName}`
-        });
+        } as any);
 
       if (notifError) throw notifError;
 

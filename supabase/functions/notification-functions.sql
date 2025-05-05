@@ -249,14 +249,14 @@ BEGIN
   -- Create a message preview
   v_preview := 
     CASE 
-      WHEN NEW.type = 'text' THEN 
+      WHEN NEW.content_type = 'text' THEN 
         CASE 
           WHEN length(NEW.content) <= 30 THEN NEW.content
           ELSE substring(NEW.content, 1, 30) || '...'
         END
-      WHEN NEW.type = 'image' THEN 'sent an image'
-      WHEN NEW.type = 'file' THEN 'sent a file'
-      WHEN NEW.type = 'voice' THEN 'sent a voice message'
+      WHEN NEW.content_type = 'image' THEN 'sent an image'
+      WHEN NEW.content_type = 'file' THEN 'sent a file'
+      WHEN NEW.content_type = 'voice' THEN 'sent a voice message'
       ELSE 'sent a message'
     END;
   

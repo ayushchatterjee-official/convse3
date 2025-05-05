@@ -118,7 +118,7 @@ const ExploreGroups = () => {
 
       // Check if user has an invitation for this group
       const { data: inviteData } = await supabase
-        .from('group_invitations')
+        .from('group_invitations' as any)
         .select('*')
         .eq('group_id', groupData.id)
         .eq('invitee_id', user?.id)
@@ -150,7 +150,7 @@ const ExploreGroups = () => {
     try {
       // Check if user has an invitation for this group
       const { data: inviteData } = await supabase
-        .from('group_invitations')
+        .from('group_invitations' as any)
         .select('*')
         .eq('group_id', group.id)
         .eq('invitee_id', user?.id)
@@ -200,7 +200,7 @@ const ExploreGroups = () => {
       // If joining from invitation, update the invitation status
       if (joinDialog.isInvited) {
         await supabase
-          .from('group_invitations')
+          .from('group_invitations' as any)
           .update({ status: 'accepted' })
           .eq('group_id', joinDialog.group.id)
           .eq('invitee_id', user?.id)

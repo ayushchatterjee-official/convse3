@@ -66,8 +66,9 @@ export const NotificationDropdown = () => {
     if (!user) return;
 
     try {
+      // Use any() as a workaround for the typings
       const { data, error } = await supabase
-        .from('notifications')
+        .from('notifications' as any)
         .select(`
           id,
           type,
@@ -109,8 +110,9 @@ export const NotificationDropdown = () => {
 
   const markAsRead = async (notificationId: string) => {
     try {
+      // Use any() as a workaround for the typings
       await supabase
-        .from('notifications')
+        .from('notifications' as any)
         .update({ read: true })
         .eq('id', notificationId);
 
