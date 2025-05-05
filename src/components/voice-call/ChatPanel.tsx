@@ -4,9 +4,9 @@ import { Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
 import { useVoiceCall } from '@/contexts/VoiceCallContext';
+import { UserAvatar } from '@/components/user/UserAvatar';
 
 export const ChatPanel: React.FC = () => {
   const { user, profile } = useAuth();
@@ -48,17 +48,13 @@ export const ChatPanel: React.FC = () => {
             >
               <div className="flex max-w-[80%]">
                 {msg.senderId !== user?.id && (
-                  <Avatar className="h-8 w-8 mr-2">
-                    {profile?.profile_pic ? (
-                      <AvatarImage src={profile.profile_pic} alt={msg.senderName} />
-                    ) : (
-                      <AvatarFallback>
-                        {msg.senderName.charAt(0).toUpperCase()}
-                      </AvatarFallback>
-                    )}
-                  </Avatar>
+                  <UserAvatar 
+                    userId={msg.senderId}
+                    name={msg.senderName}
+                    size="sm"
+                  />
                 )}
-                <div>
+                <div className="ml-2">
                   <div className="flex items-center space-x-2 mb-1">
                     {msg.senderId !== user?.id && (
                       <span className="text-sm text-gray-500">

@@ -29,7 +29,7 @@ export const useGroupNavigation = () => {
         .eq('is_admin', true);
         
       const isLastAdmin = admins && admins.length === 1 && 
-        admins.some(admin => admin.user_id === user.id);
+        admins.some(admin => admin.id && user.id);
         
       if (isLastAdmin) {
         toast.error('You cannot leave the group as you are the last admin.');

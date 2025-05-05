@@ -5,8 +5,12 @@ import { GroupList } from '@/components/groups/GroupList';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { CreateGroupDialog } from '@/components/groups/CreateGroupDialog';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 
 const Dashboard = () => {
+  // Initialize online status tracking
+  useOnlineStatus();
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
