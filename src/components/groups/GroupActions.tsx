@@ -20,6 +20,18 @@ import {
 import { Group } from '@/hooks/useGroupList';
 import { GroupInviteDialog } from './GroupInviteDialog';
 import { useGroupNavigation } from '@/hooks/useGroupNavigation';
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useAuth } from '@/contexts/AuthContext';
+import { Loader2 } from 'lucide-react';
 
 interface GroupActionsProps {
   group: Group;
@@ -28,7 +40,9 @@ interface GroupActionsProps {
 export const GroupActions: React.FC<GroupActionsProps> = ({ group }) => {
   const navigate = useNavigate();
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const { navigateToChat, leaveGroup, deleteGroup, processingGroupId } = useGroupNavigation();
+  const { isAdmin } = useAuth();
   
   const handleVoiceCall = () => {
     navigate(`/voice-call/${group.id}`);
@@ -43,6 +57,7 @@ export const GroupActions: React.FC<GroupActionsProps> = ({ group }) => {
   };
 
   const handleDeleteGroup = async () => {
+    setDeleteDialogOpen(false);
     await deleteGroup(group.id);
   };
 
@@ -55,6 +70,7 @@ export const GroupActions: React.FC<GroupActionsProps> = ({ group }) => {
           variant="default" 
           className="flex-1"
           onClick={handleChatNavigation}
+          disabled={isProcessing}
         >
           <MessageSquare className="mr-2 h-4 w-4" />
           Open Chat
@@ -62,7 +78,7 @@ export const GroupActions: React.FC<GroupActionsProps> = ({ group }) => {
         
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" disabled={isProcessing}>
               <MoreHorizontal className="h-4 w-4" />
               <span className="sr-only">Open menu</span>
             </Button>
@@ -89,9 +105,9 @@ export const GroupActions: React.FC<GroupActionsProps> = ({ group }) => {
               Leave Group
             </DropdownMenuItem>
             
-            {group.is_admin && (
+            {(group.is_admin || isAdmin) && (
               <DropdownMenuItem 
-                onClick={handleDeleteGroup}
+                onClick={() => setDeleteDialogOpen(true)}
                 className="text-red-600 dark:text-red-400"
                 disabled={isProcessing}
               >
@@ -102,6 +118,30 @@ export const GroupActions: React.FC<GroupActionsProps> = ({ group }) => {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {/* Delete Group Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Group</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{group.name}"? This action cannot be undone.
+              All messages and group data will be permanently removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isProcessing}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteGroup}
+              className="bg-red-600 hover:bg-red-700 text-white"
+              disabled={isProcessing}
+            >
+              {isProcessing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <GroupInviteDialog
         open={inviteDialogOpen}

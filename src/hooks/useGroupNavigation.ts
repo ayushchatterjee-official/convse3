@@ -46,6 +46,7 @@ export const useGroupNavigation = () => {
       if (error) throw error;
       
       toast.success('Successfully left the group');
+      navigate('/dashboard');
       
     } catch (error) {
       console.error('Error leaving group:', error);
@@ -60,6 +61,7 @@ export const useGroupNavigation = () => {
     
     try {
       setProcessingGroupId(groupId);
+      console.log('Starting group deletion for group ID:', groupId);
       
       // Check if the user is an admin
       const { data: member } = await supabase
@@ -68,21 +70,105 @@ export const useGroupNavigation = () => {
         .eq('group_id', groupId)
         .eq('user_id', user.id)
         .single();
+      
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('account_status')
+        .eq('id', user.id)
+        .single();
         
-      if (!member?.is_admin) {
+      const isAdmin = member?.is_admin || profile?.account_status === 'admin';
+      console.log('User admin status:', isAdmin);
+        
+      if (!isAdmin) {
         toast.error('Only admins can delete groups');
         return;
       }
       
-      // Delete the group
-      const { error } = await supabase
+      // First delete all members
+      console.log('Deleting group members...');
+      const { error: membersError } = await supabase
+        .from('group_members')
+        .delete()
+        .eq('group_id', groupId);
+        
+      if (membersError) {
+        console.error('Error deleting group members:', membersError);
+        throw membersError;
+      }
+      
+      // Delete messages
+      console.log('Deleting group messages...');
+      const { error: messagesError } = await supabase
+        .from('messages')
+        .delete()
+        .eq('group_id', groupId);
+        
+      if (messagesError) {
+        console.error('Error deleting group messages:', messagesError);
+        throw messagesError;
+      }
+      
+      // Delete voice calls
+      console.log('Deleting group voice calls...');
+      const { data: voiceCalls } = await supabase
+        .from('group_voice_calls')
+        .select('id')
+        .eq('group_id', groupId);
+        
+      if (voiceCalls && voiceCalls.length > 0) {
+        for (const call of voiceCalls) {
+          // Delete voice call participants
+          await supabase
+            .from('voice_call_participants')
+            .delete()
+            .eq('call_id', call.id);
+        }
+        
+        // Delete voice calls
+        await supabase
+          .from('group_voice_calls')
+          .delete()
+          .eq('group_id', groupId);
+      }
+      
+      // Delete invitations
+      console.log('Deleting group invitations...');
+      const { error: invitationsError } = await supabase
+        .from('group_invitations')
+        .delete()
+        .eq('group_id', groupId);
+        
+      if (invitationsError) {
+        console.error('Error deleting group invitations:', invitationsError);
+      }
+      
+      // Delete notifications related to the group
+      console.log('Deleting group notifications...');
+      const { error: notificationsError } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('group_id', groupId);
+        
+      if (notificationsError) {
+        console.error('Error deleting group notifications:', notificationsError);
+      }
+      
+      // Finally delete the group
+      console.log('Deleting the group itself...');
+      const { error: groupError } = await supabase
         .from('groups')
         .delete()
         .eq('id', groupId);
         
-      if (error) throw error;
+      if (groupError) {
+        console.error('Error deleting group:', groupError);
+        throw groupError;
+      }
       
+      console.log('Group deletion completed successfully');
       toast.success('Group deleted successfully');
+      navigate('/dashboard');
       
     } catch (error) {
       console.error('Error deleting group:', error);
