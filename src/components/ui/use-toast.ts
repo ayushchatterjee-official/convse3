@@ -1,4 +1,5 @@
 
-import { useToast, toast } from "@/hooks/use-toast";
+import * as React from "react";
 
-export { useToast, toast };
+// Re-export from the hooks directory
+export { useToast, toast } from "@/hooks/use-toast";
