@@ -17,23 +17,28 @@ export const OnlineStatus: React.FC<OnlineStatusProps> = ({ userId, className })
     let aborted = false;
     
     // First, check if the user is already online
-    const checkInitialStatus = async () => {
+    const setupPresence = async () => {
       try {
         // Subscribe to the presence channel
         presenceChannel = presenceChannel
           .on('presence', { event: 'sync' }, () => {
             if (aborted) return;
+            
             const state = presenceChannel.presenceState();
+            console.log('Presence state:', state);
             
             // Check if the user is in the presence state
             const userPresent = Object.keys(state).some(key => {
               return state[key].some((presence: any) => presence.user_id === userId);
             });
             
+            console.log(`User ${userId} online status:`, userPresent);
             setIsOnline(userPresent);
           })
           .on('presence', { event: 'join' }, ({ key, newPresences }) => {
             if (aborted) return;
+            
+            console.log('Join event:', key, newPresences);
             // Check if the joined user is the one we're tracking
             const userJoined = newPresences.some((presence: any) => presence.user_id === userId);
             if (userJoined) {
@@ -42,6 +47,8 @@ export const OnlineStatus: React.FC<OnlineStatusProps> = ({ userId, className })
           })
           .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
             if (aborted) return;
+            
+            console.log('Leave event:', key, leftPresences);
             // Check if the left user is the one we're tracking
             const userLeft = leftPresences.some((presence: any) => presence.user_id === userId);
             if (userLeft) {
@@ -49,13 +56,12 @@ export const OnlineStatus: React.FC<OnlineStatusProps> = ({ userId, className })
             }
           })
           .subscribe();
-
       } catch (error) {
-        console.error('Error checking online status:', error);
+        console.error('Error setting up presence:', error);
       }
     };
     
-    checkInitialStatus();
+    setupPresence();
     
     // Cleanup
     return () => {
@@ -65,11 +71,11 @@ export const OnlineStatus: React.FC<OnlineStatusProps> = ({ userId, className })
   }, [userId]);
   
   return (
-    <div className={cn("relative", className)}>
+    <div className={cn("absolute bottom-0 right-0", className)}>
       {isOnline ? (
-        <CircleDot className="text-green-500 absolute bottom-0 right-0 h-3 w-3 drop-shadow-md" />
+        <CircleDot className="text-green-500 h-3 w-3 fill-green-500" />
       ) : (
-        <Circle className="text-gray-400 absolute bottom-0 right-0 h-3 w-3 drop-shadow-md" />
+        <Circle className="text-gray-400 h-3 w-3" />
       )}
     </div>
   );
