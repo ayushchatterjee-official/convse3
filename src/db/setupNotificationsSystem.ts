@@ -4,9 +4,6 @@ import { supabase } from '@/integrations/supabase/client';
 // This function checks if notifications and invitations tables exist
 export async function setupNotificationsSystem() {
   try {
-    // Enable realtime for presence
-    await supabase.rpc('enable_realtime_subscriptions');
-    
     // Check if notifications table exists
     const { error: notificationCheckError } = await supabase
       .from('notifications')
