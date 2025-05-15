@@ -158,6 +158,7 @@ export type Database = {
           group_id: string
           id: string
           is_deleted: boolean
+          is_system_message: boolean | null
           user_id: string
         }
         Insert: {
@@ -169,6 +170,7 @@ export type Database = {
           group_id: string
           id?: string
           is_deleted?: boolean
+          is_system_message?: boolean | null
           user_id: string
         }
         Update: {
@@ -180,6 +182,7 @@ export type Database = {
           group_id?: string
           id?: string
           is_deleted?: boolean
+          is_system_message?: boolean | null
           user_id?: string
         }
         Relationships: [

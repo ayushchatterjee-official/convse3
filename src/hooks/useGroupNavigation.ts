@@ -57,7 +57,7 @@ export const useGroupNavigation = () => {
   };
   
   const clearGroupChat = async (groupId: string) => {
-    if (!user) return;
+    if (!user) return false;
     
     try {
       setProcessingGroupId(groupId);
@@ -96,7 +96,7 @@ export const useGroupNavigation = () => {
           is_system_message: true
         });
         
-      // Delete all messages except the one we just added
+      // Mark all non-system messages as deleted
       const { error } = await supabase
         .from('messages')
         .update({ is_deleted: true, deleted_by: user.id })
