@@ -1,33 +1,7 @@
-import { useToast } from "@/hooks/use-toast"
-import {
-  Toast,
-  ToastClose,
-  ToastDescription,
-  ToastProvider,
-  ToastTitle,
-  ToastViewport,
-} from "@/components/ui/toast"
 
-export function Toaster() {
-  const { toasts } = useToast()
+// This file is now a simple re-export of the Sonner Toaster component
+// We're not using this file directly anymore as we've switched to using sonner
+// in src/App.tsx via the Sonner component from src/components/ui/sonner.tsx
 
-  return (
-    <ToastProvider>
-      {toasts.map(function ({ id, title, description, action, ...props }) {
-        return (
-          <Toast key={id} {...props}>
-            <div className="grid gap-1">
-              {title && <ToastTitle>{title}</ToastTitle>}
-              {description && (
-                <ToastDescription>{description}</ToastDescription>
-              )}
-            </div>
-            {action}
-            <ToastClose />
-          </Toast>
-        )
-      })}
-      <ToastViewport />
-    </ToastProvider>
-  )
-}
+// Re-exporting the Toaster from our sonner.tsx to maintain backward compatibility
+export { Toaster } from "./sonner";
