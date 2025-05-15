@@ -56,6 +56,71 @@ export const useGroupNavigation = () => {
     }
   };
   
+  const clearGroupChat = async (groupId: string) => {
+    if (!user) return;
+    
+    try {
+      setProcessingGroupId(groupId);
+      console.log('Starting chat clear for group ID:', groupId);
+      
+      // Check if the user is an admin
+      const { data: member } = await supabase
+        .from('group_members')
+        .select('is_admin')
+        .eq('group_id', groupId)
+        .eq('user_id', user.id)
+        .single();
+      
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('account_status')
+        .eq('id', user.id)
+        .single();
+        
+      const isAdmin = member?.is_admin || profile?.account_status === 'admin';
+      console.log('User admin status:', isAdmin);
+        
+      if (!isAdmin) {
+        toast.error('Only admins can clear group chat history');
+        return false;
+      }
+      
+      // Add a system message that chat was cleared
+      await supabase
+        .from('messages')
+        .insert({
+          group_id: groupId,
+          user_id: user.id,
+          content: `Chat history was cleared by an admin`,
+          content_type: 'text',
+          is_system_message: true
+        });
+        
+      // Delete all messages except the one we just added
+      const { error } = await supabase
+        .from('messages')
+        .update({ is_deleted: true, deleted_by: user.id })
+        .eq('group_id', groupId)
+        .is('is_system_message', null);
+        
+      if (error) {
+        console.error('Error clearing messages:', error);
+        throw error;
+      }
+      
+      console.log('Chat cleared successfully');
+      toast.success('Chat history has been cleared');
+      
+      return true;
+    } catch (error) {
+      console.error('Error clearing chat:', error);
+      toast.error('Failed to clear chat history');
+      return false;
+    } finally {
+      setProcessingGroupId(null);
+    }
+  };
+  
   const deleteGroup = async (groupId: string) => {
     if (!user) return;
     
@@ -181,6 +246,7 @@ export const useGroupNavigation = () => {
   return {
     navigateToChat,
     leaveGroup,
+    clearGroupChat,
     deleteGroup,
     processingGroupId
   };

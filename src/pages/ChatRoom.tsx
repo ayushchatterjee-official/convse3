@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -36,12 +37,14 @@ import {
   Video,
   SmilePlus,
   X,
+  Eraser,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getFileType, uploadFile } from '@/lib/fileUpload';
 import { Textarea } from '@/components/ui/textarea';
+import { useGroupNavigation } from '@/hooks/useGroupNavigation';
 
 interface MessageProfile {
   name: string;
@@ -59,6 +62,7 @@ interface Message {
   deleted_by: string | null;
   created_at: string;
   profiles: MessageProfile | null;
+  is_system_message?: boolean;
 }
 
 interface GroupMember {
@@ -88,6 +92,7 @@ const ChatRoom = () => {
   const { groupId } = useParams<{ groupId: string }>();
   const { user, profile, isAdmin } = useAuth();
   const navigate = useNavigate();
+  const { clearGroupChat } = useGroupNavigation();
   const [messages, setMessages] = useState<Message[]>([]);
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [group, setGroup] = useState<Group | null>(null);
@@ -97,12 +102,14 @@ const ChatRoom = () => {
   const [isGroupAdmin, setIsGroupAdmin] = useState(false);
   const [memberToAction, setMemberToAction] = useState<GroupMember | null>(null);
   const [showBanDialog, setShowBanDialog] = useState(false);
+  const [showClearChatDialog, setShowClearChatDialog] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState<string | null>(null);
   const [fileType, setFileType] = useState<string>('');
   const [showFilePreview, setShowFilePreview] = useState(false);
   const [fileCaption, setFileCaption] = useState('');
+  const [clearingChat, setClearingChat] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -235,7 +242,8 @@ const ChatRoom = () => {
           return {
             ...msg,
             content_type: msg.content_type as 'text' | 'link' | 'image' | 'video' | 'file',
-            profiles: profileData
+            profiles: profileData,
+            is_system_message: msg.is_system_message || false
           };
         }) as Message[];
         
@@ -271,7 +279,8 @@ const ChatRoom = () => {
         const typedMessage = {
           ...data,
           content_type: data.content_type as 'text' | 'link' | 'image' | 'video' | 'file',
-          profiles: profileData
+          profiles: profileData,
+          is_system_message: data.is_system_message || false
         } as Message;
         
         setMessages(current => [...current, typedMessage]);
@@ -422,6 +431,24 @@ const ChatRoom = () => {
     } catch (error) {
       console.error('Error deleting message:', error);
       toast.error('Failed to delete message');
+    }
+  };
+  
+  const handleClearChat = async () => {
+    if (!groupId) return;
+    
+    setClearingChat(true);
+    try {
+      const success = await clearGroupChat(groupId);
+      if (success) {
+        // Refresh messages to show the system message
+        fetchMessages();
+        setShowClearChatDialog(false);
+      }
+    } catch (error) {
+      console.error('Error clearing chat:', error);
+    } finally {
+      setClearingChat(false);
     }
   };
   
@@ -800,6 +827,19 @@ const ChatRoom = () => {
                   <DropdownMenuItem onClick={() => setShowMembers(!showMembers)}>
                     View Members
                   </DropdownMenuItem>
+                  
+                  {(isGroupAdmin || isAdmin) && (
+                    <DropdownMenuItem 
+                      onClick={() => setShowClearChatDialog(true)}
+                      className="text-orange-500 dark:text-orange-400"
+                    >
+                      <Eraser className="mr-2 h-4 w-4" />
+                      Clear Chat History
+                    </DropdownMenuItem>
+                  )}
+                  
+                  <DropdownMenuSeparator />
+                  
                   <DropdownMenuItem onClick={handleLeaveGroup} className="text-red-500 dark:text-red-400">
                     Leave Group
                   </DropdownMenuItem>
@@ -821,68 +861,80 @@ const ChatRoom = () => {
               messages.map((msg) => (
                 <div 
                   key={msg.id} 
-                  className={`flex ${msg.user_id === user?.id ? 'justify-end' : 'justify-start'}`}
+                  className={`flex ${
+                    msg.is_system_message 
+                      ? 'justify-center' 
+                      : msg.user_id === user?.id 
+                        ? 'justify-end' 
+                        : 'justify-start'
+                  }`}
                 >
-                  <div className="flex max-w-[75%]">
-                    {msg.user_id !== user?.id && (
-                      <Avatar className="h-8 w-8 mr-2 mt-1">
-                        {msg.profiles?.profile_pic ? (
-                          <AvatarImage src={msg.profiles.profile_pic} alt={msg.profiles?.name || 'User'} />
-                        ) : (
-                          <AvatarFallback>
-                            {msg.profiles?.name ? getInitials(msg.profiles.name) : 'U'}
-                          </AvatarFallback>
-                        )}
-                      </Avatar>
-                    )}
-                    
-                    <div>
-                      <div className="flex items-end space-x-1">
-                        {msg.user_id !== user?.id && (
-                          <span className="text-xs text-gray-500 dark:text-gray-400 mb-1">{msg.profiles?.name || 'Unknown User'}</span>
-                        )}
-                      </div>
+                  {msg.is_system_message ? (
+                    <div className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-3 py-1 rounded-full text-xs">
+                      {msg.content}
+                    </div>
+                  ) : (
+                    <div className="flex max-w-[75%]">
+                      {msg.user_id !== user?.id && (
+                        <Avatar className="h-8 w-8 mr-2 mt-1">
+                          {msg.profiles?.profile_pic ? (
+                            <AvatarImage src={msg.profiles.profile_pic} alt={msg.profiles?.name || 'User'} />
+                          ) : (
+                            <AvatarFallback>
+                              {msg.profiles?.name ? getInitials(msg.profiles.name) : 'U'}
+                            </AvatarFallback>
+                          )}
+                        </Avatar>
+                      )}
                       
-                      <div 
-                        className={`rounded-lg px-4 py-2 ${
-                          msg.user_id === user?.id
-                            ? 'bg-blue-500 text-white dark:bg-blue-600'
-                            : 'bg-white text-gray-800 border dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700'
-                        } ${msg.is_deleted ? 'bg-gray-100 italic dark:bg-gray-700' : ''}`}
-                      >
-                        {msg.is_deleted ? (
-                          <span className="text-gray-500 dark:text-gray-400">
-                            {msg.deleted_by === msg.user_id
-                              ? 'This message was deleted'
-                              : `${msg.profiles?.name || 'User'} deleted this message`
-                            }
-                          </span>
-                        ) : renderFilePreview(msg)}
+                      <div>
+                        <div className="flex items-end space-x-1">
+                          {msg.user_id !== user?.id && (
+                            <span className="text-xs text-gray-500 dark:text-gray-400 mb-1">{msg.profiles?.name || 'Unknown User'}</span>
+                          )}
+                        </div>
                         
-                        <div className="text-xs mt-1 text-right">
-                          {formatTimestamp(msg.created_at)}
+                        <div 
+                          className={`rounded-lg px-4 py-2 ${
+                            msg.user_id === user?.id
+                              ? 'bg-blue-500 text-white dark:bg-blue-600'
+                              : 'bg-white text-gray-800 border dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700'
+                          } ${msg.is_deleted ? 'bg-gray-100 italic dark:bg-gray-700' : ''}`}
+                        >
+                          {msg.is_deleted ? (
+                            <span className="text-gray-500 dark:text-gray-400">
+                              {msg.deleted_by === msg.user_id
+                                ? 'This message was deleted'
+                                : `${msg.profiles?.name || 'User'} deleted this message`
+                              }
+                            </span>
+                          ) : renderFilePreview(msg)}
+                          
+                          <div className="text-xs mt-1 text-right">
+                            {formatTimestamp(msg.created_at)}
+                          </div>
                         </div>
                       </div>
+                      
+                      {!msg.is_deleted && !msg.is_system_message && canModerateMessage(msg.user_id) && (
+                        <div className="self-center ml-2">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-6 w-6">
+                                <MoreVertical className="h-3 w-3" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleDeleteMessage(msg.id)}>
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      )}
                     </div>
-                    
-                    {!msg.is_deleted && canModerateMessage(msg.user_id) && (
-                      <div className="self-center ml-2">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-6 w-6">
-                              <MoreVertical className="h-3 w-3" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleDeleteMessage(msg.id)}>
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    )}
-                  </div>
+                  )}
                 </div>
               ))
             )}
@@ -991,6 +1043,38 @@ const ChatRoom = () => {
             </Button>
             <Button variant="destructive" onClick={handleBanMember}>
               Ban Member
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Clear Chat Dialog */}
+      <Dialog open={showClearChatDialog} onOpenChange={setShowClearChatDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Clear Chat History</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to clear all chat history for this group? This action cannot be undone.
+              All messages will be marked as deleted.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowClearChatDialog(false)} disabled={clearingChat}>
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleClearChat}
+              disabled={clearingChat}
+            >
+              {clearingChat ? (
+                <>
+                  <div className="animate-spin mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                  Clearing...
+                </>
+              ) : (
+                <>Clear Chat</>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
