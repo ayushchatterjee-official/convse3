@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -85,8 +84,8 @@ export const useGroupNavigation = () => {
         return false;
       }
       
-      // Add a system message that chat was cleared
-      await supabase
+      // First, add a system message that chat was cleared
+      const { error: systemMsgError } = await supabase
         .from('messages')
         .insert({
           group_id: groupId,
@@ -96,12 +95,16 @@ export const useGroupNavigation = () => {
           is_system_message: true
         });
         
-      // Mark all non-system messages as deleted
+      if (systemMsgError) {
+        console.error('Error adding system message:', systemMsgError);
+      }
+        
+      // Then, mark all non-system messages as deleted
       const { error } = await supabase
         .from('messages')
         .update({ is_deleted: true, deleted_by: user.id })
         .eq('group_id', groupId)
-        .is('is_system_message', null);
+        .eq('is_system_message', false);
         
       if (error) {
         console.error('Error clearing messages:', error);

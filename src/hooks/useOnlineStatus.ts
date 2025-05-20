@@ -10,6 +10,8 @@ export const useOnlineStatus = () => {
   useEffect(() => {
     if (!user) return;
     
+    console.log('Setting up online status tracking for current user:', user.id);
+    
     // Create a channel for user presence
     const channel = supabase.channel('online-users');
     
@@ -17,7 +19,10 @@ export const useOnlineStatus = () => {
     const setupPresence = async () => {
       try {
         await channel.subscribe(async (status) => {
-          if (status !== 'SUBSCRIBED') return;
+          if (status !== 'SUBSCRIBED') {
+            console.log('Channel subscription status:', status);
+            return;
+          }
           
           console.log('Presence channel subscribed, tracking user presence');
           
@@ -27,6 +32,7 @@ export const useOnlineStatus = () => {
             online_at: new Date().toISOString(),
           });
           
+          console.log('Initial presence tracked for user:', user.id);
           setIsOnline(true);
         });
       } catch (error) {
@@ -44,6 +50,7 @@ export const useOnlineStatus = () => {
             user_id: user.id,
             online_at: new Date().toISOString(),
           });
+          console.log('Heartbeat presence updated for user:', user.id);
         } catch (error) {
           console.error('Error updating presence:', error);
         }
@@ -51,6 +58,7 @@ export const useOnlineStatus = () => {
     }, 30000); // 30 seconds
     
     return () => {
+      console.log('Cleaning up online status tracking');
       clearInterval(heartbeat);
       supabase.removeChannel(channel);
     };

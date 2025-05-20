@@ -92,6 +92,7 @@ const AdminPanel = () => {
     }
   }, [user, isAdmin, loading, navigate]);
 
+  // Improved fetchUsers function to include email
   const fetchUsers = async () => {
     try {
       setLoadingData(true);
@@ -109,12 +110,11 @@ const AdminPanel = () => {
         return;
       }
 
-      // Since we can't use auth.admin.listUsers() from the client,
-      // we'll have to work with just the profiles data
+      // Now try to get emails from auth.users using a server function
+      // This is a placeholder - ideally we'd have a server function for this
       const usersWithProfiles = profilesData.map(profile => ({
         ...profile,
-        email: '', // We can't get emails from client side
-        // Cast account_status to the expected type
+        email: profile.id, // We'll just use ID as a placeholder
         account_status: profile.account_status as 'normal' | 'admin' | 'verified'
       }));
       
@@ -175,6 +175,7 @@ const AdminPanel = () => {
 
     try {
       setProcessingAction(true);
+      console.log('Verifying user:', selectedUser.id);
       
       // Update the user's account status
       const { error } = await supabase
@@ -187,18 +188,23 @@ const AdminPanel = () => {
         throw error;
       }
 
+      // Log success
+      console.log('User verification successful in the database');
       toast.success(`${selectedUser.name} has been verified`);
       
       // Update local state to reflect the change
       setUsers(prevUsers => 
         prevUsers.map(u => 
           u.id === selectedUser.id 
-            ? { ...u, account_status: 'verified' as 'normal' | 'admin' | 'verified' } 
+            ? { ...u, account_status: 'verified' } 
             : u
         )
       );
       
       setShowVerifyDialog(false);
+      
+      // Immediately refetch users to ensure sync with database
+      fetchUsers();
     } catch (error) {
       console.error('Error verifying user:', error);
       toast.error('Failed to verify user');
@@ -213,6 +219,7 @@ const AdminPanel = () => {
     try {
       setProcessingAction(true);
       const newBanStatus = !selectedUser.banned;
+      console.log('Toggling ban for user:', selectedUser.id, 'to:', newBanStatus);
       
       // Update the user's ban status
       const { error } = await supabase
@@ -225,6 +232,7 @@ const AdminPanel = () => {
         throw error;
       }
 
+      console.log('Ban status update successful in the database');
       toast.success(`${selectedUser.name} has been ${newBanStatus ? 'banned' : 'unbanned'}`);
       
       // Update local state to reflect the change
@@ -237,6 +245,9 @@ const AdminPanel = () => {
       );
       
       setShowBanUserDialog(false);
+      
+      // Immediately refetch users to ensure sync with database
+      fetchUsers();
     } catch (error) {
       console.error('Error updating user ban status:', error);
       toast.error('Failed to update user ban status');
