@@ -25,30 +25,26 @@ export const OnlineStatus: React.FC<OnlineStatusProps> = ({ userId, className })
             if (aborted) return;
             
             const state = presenceChannel.presenceState();
-            console.log('Presence state:', state);
             
             // Check if the user is in the presence state
-            const userPresent = Object.keys(state).some(key => {
-              return state[key].some((presence: any) => presence.user_id === userId);
-            });
+            const userPresent = Object.values(state).flat().some(
+              (presence: any) => presence.user_id === userId
+            );
             
-            console.log(`User ${userId} online status:`, userPresent);
             setIsOnline(userPresent);
           })
-          .on('presence', { event: 'join' }, ({ key, newPresences }) => {
+          .on('presence', { event: 'join' }, ({ newPresences }) => {
             if (aborted) return;
             
-            console.log('Join event:', key, newPresences);
             // Check if the joined user is the one we're tracking
             const userJoined = newPresences.some((presence: any) => presence.user_id === userId);
             if (userJoined) {
               setIsOnline(true);
             }
           })
-          .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
+          .on('presence', { event: 'leave' }, ({ leftPresences }) => {
             if (aborted) return;
             
-            console.log('Leave event:', key, leftPresences);
             // Check if the left user is the one we're tracking
             const userLeft = leftPresences.some((presence: any) => presence.user_id === userId);
             if (userLeft) {

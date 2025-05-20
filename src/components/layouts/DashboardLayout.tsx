@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,8 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { NotificationDropdown } from '@/components/notification/NotificationDropdown';
 import { User, Home, Settings, Search, LogOut, ShieldCheck, Menu, MessageSquare } from 'lucide-react';
 import { toast } from 'sonner';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus'; // Add this import
+
 interface DashboardLayoutProps {
   children: React.ReactNode;
   noPadding?: boolean;
@@ -24,6 +26,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     isAdmin,
     signOut
   } = useAuth();
+  
+  // Use the hook to track online status
+  useOnlineStatus();
+  
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const location = useLocation();

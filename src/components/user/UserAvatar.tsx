@@ -2,6 +2,8 @@
 import React from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { OnlineStatus } from './OnlineStatus';
+import { Badge } from '@/components/ui/badge';
+import { CircleCheck } from 'lucide-react';
 
 interface UserAvatarProps {
   userId: string;
@@ -9,6 +11,7 @@ interface UserAvatarProps {
   name?: string;
   showStatus?: boolean;
   size?: 'sm' | 'md' | 'lg';
+  accountStatus?: 'normal' | 'admin' | 'verified';
 }
 
 export const UserAvatar: React.FC<UserAvatarProps> = ({ 
@@ -16,7 +19,8 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   profilePic,
   name,
   showStatus = true,
-  size = 'md'
+  size = 'md',
+  accountStatus
 }) => {
   const getInitials = (fullName: string) => {
     return fullName
@@ -47,6 +51,12 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
       
       {showStatus && (
         <OnlineStatus userId={userId} />
+      )}
+      
+      {accountStatus === 'verified' && (
+        <div className="absolute -top-1 -right-1">
+          <CircleCheck className="h-4 w-4 text-blue-500 fill-white" />
+        </div>
       )}
     </div>
   );

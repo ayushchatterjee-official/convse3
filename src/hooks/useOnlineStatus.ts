@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 export const useOnlineStatus = () => {
   const { user } = useAuth();
+  const [isOnline, setIsOnline] = useState(false);
   
   useEffect(() => {
     if (!user) return;
@@ -13,23 +14,39 @@ export const useOnlineStatus = () => {
     const channel = supabase.channel('online-users');
     
     // Track presence for the current user
-    channel.subscribe(async (status) => {
-      if (status !== 'SUBSCRIBED') return;
-      
-      // Send the user's status
-      await channel.track({
-        user_id: user.id,
-        online_at: new Date().toISOString(),
-      });
-    });
+    const setupPresence = async () => {
+      try {
+        await channel.subscribe(async (status) => {
+          if (status !== 'SUBSCRIBED') return;
+          
+          console.log('Presence channel subscribed, tracking user presence');
+          
+          // Send the user's status
+          await channel.track({
+            user_id: user.id,
+            online_at: new Date().toISOString(),
+          });
+          
+          setIsOnline(true);
+        });
+      } catch (error) {
+        console.error('Error setting up presence:', error);
+      }
+    };
+    
+    setupPresence();
     
     // Set up a heartbeat to maintain presence
     const heartbeat = setInterval(async () => {
       if (channel) {
-        await channel.track({
-          user_id: user.id,
-          online_at: new Date().toISOString(),
-        });
+        try {
+          await channel.track({
+            user_id: user.id,
+            online_at: new Date().toISOString(),
+          });
+        } catch (error) {
+          console.error('Error updating presence:', error);
+        }
       }
     }, 30000); // 30 seconds
     
@@ -38,4 +55,6 @@ export const useOnlineStatus = () => {
       supabase.removeChannel(channel);
     };
   }, [user]);
+  
+  return isOnline;
 };

@@ -38,6 +38,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Loader2, Trash2, UserCheck, UserX, CheckCircle } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/user/UserAvatar';
 
 interface User {
   id: string;
@@ -368,14 +369,19 @@ const AdminPanel = () => {
                         <TableRow key={user.id} className={user.banned ? "bg-red-50" : ""}>
                           <TableCell className="font-medium">
                             <div className="flex items-center gap-2">
-                              <Avatar className="h-8 w-8">
-                                {user.profile_pic ? (
-                                  <AvatarImage src={user.profile_pic} alt={user.name} />
-                                ) : (
-                                  <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+                              <UserAvatar 
+                                userId={user.id}
+                                profilePic={user.profile_pic}
+                                name={user.name}
+                                showStatus={true}
+                                accountStatus={user.account_status}
+                              />
+                              <div className="flex items-center">
+                                <span>{user.name}</span>
+                                {user.account_status === 'verified' && (
+                                  <CircleCheck className="ml-1 h-4 w-4 text-blue-500 fill-white" />
                                 )}
-                              </Avatar>
-                              <span>{user.name}</span>
+                              </div>
                             </div>
                           </TableCell>
                           <TableCell>{user.email}</TableCell>
