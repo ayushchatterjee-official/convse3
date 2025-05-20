@@ -56,14 +56,17 @@ const Admin = () => {
       // Create a temporary array to hold merged data
       const tempUsers: User[] = [];
       
-      // For each profile, try to get their email
+      // For each profile, process and ensure correct typing
       for (const profile of profilesData) {
         try {
-          // Note: This approach might be limited based on permissions
-          // We're relying on the profiles having email info or an alternative approach
+          // Ensure account_status is properly typed
+          const accountStatus = profile.account_status as 'normal' | 'admin' | 'verified';
+          
           tempUsers.push({
             ...profile,
             email: 'Email not available', // Default value if email can't be retrieved
+            account_status: accountStatus, // Make sure it's properly typed
+            banned: profile.banned || false, // Ensure banned is a boolean
           });
         } catch (error) {
           console.error('Error processing user:', error);
@@ -100,7 +103,7 @@ const Admin = () => {
       setUsers(prevUsers => 
         prevUsers.map(user => 
           user.id === userId 
-            ? { ...user, account_status: newAccountStatus } 
+            ? { ...user, account_status: newAccountStatus as 'normal' | 'admin' | 'verified' } 
             : user
         )
       );
