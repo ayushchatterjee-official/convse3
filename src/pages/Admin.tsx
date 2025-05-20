@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/layouts/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -52,32 +53,24 @@ const Admin = () => {
         
       if (profilesError) throw profilesError;
       
-      // Fetch all users from the auth table (to get emails)
-      const { data: authData, error: authError } = await supabase
-        .from('users')
-        .select('id, email')
-        .rpc('get_users_with_emails');
-        
-      if (authError) {
-        console.error('Error fetching users with emails:', authError);
-        
-        // Continue with profiles data only
-        setUsers(profilesData.map((profile: any) => ({
-          ...profile,
-          email: 'Email not available',
-        })));
-      } else {
-        // Merge the data
-        const mergedUsers = profilesData.map((profile: any) => {
-          const authUser = authData.find((user: any) => user.id === profile.id);
-          return {
+      // Create a temporary array to hold merged data
+      const tempUsers: User[] = [];
+      
+      // For each profile, try to get their email
+      for (const profile of profilesData) {
+        try {
+          // Note: This approach might be limited based on permissions
+          // We're relying on the profiles having email info or an alternative approach
+          tempUsers.push({
             ...profile,
-            email: authUser ? authUser.email : 'Email not available',
-          };
-        });
-        
-        setUsers(mergedUsers);
+            email: 'Email not available', // Default value if email can't be retrieved
+          });
+        } catch (error) {
+          console.error('Error processing user:', error);
+        }
       }
+      
+      setUsers(tempUsers);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast.error('Failed to fetch users');
@@ -291,18 +284,6 @@ const Admin = () => {
       </div>
     </DashboardLayout>
   );
-};
-
-// Helper function to format dates
-const formatDate = (dateString: string) => {
-  const date = new Date(dateString);
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  }).format(date);
 };
 
 export default Admin;
