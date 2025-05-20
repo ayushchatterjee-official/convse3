@@ -60,7 +60,7 @@ export const GroupInviteDialog: React.FC<GroupInviteDialogProps> = ({
         const memberIds = members?.map(m => m.user_id) || [];
         memberIds.push(user?.id || ''); // Add current user to exclude list
 
-        // Get existing invitation recipient IDs - use any() as a workaround
+        // Get existing invitation recipient IDs
         const { data: invitations } = await supabase
           .from('group_invitations' as any)
           .select('invitee_id')
@@ -101,19 +101,31 @@ export const GroupInviteDialog: React.FC<GroupInviteDialogProps> = ({
     
     setInviting(inviteeId);
     try {
-      // Create invitation record - use any() as a workaround
-      const { error: inviteError } = await supabase
+      // Get the invitee's name
+      const { data: inviteeData, error: inviteeError } = await supabase
+        .from('profiles')
+        .select('name')
+        .eq('id', inviteeId)
+        .single();
+
+      if (inviteeError) throw inviteeError;
+      const inviteeName = inviteeData.name;
+      
+      // Create invitation record
+      const { data: invitationData, error: inviteError } = await supabase
         .from('group_invitations' as any)
         .insert({
           group_id: groupId,
           inviter_id: user.id,
           invitee_id: inviteeId,
           status: 'pending'
-        } as any);
+        } as any)
+        .select('id')
+        .single();
 
       if (inviteError) throw inviteError;
 
-      // Create notification - use any() as a workaround
+      // Create notification
       const { error: notifError } = await supabase
         .from('notifications' as any)
         .insert({
@@ -121,12 +133,13 @@ export const GroupInviteDialog: React.FC<GroupInviteDialogProps> = ({
           sender_id: user.id,
           group_id: groupId,
           type: 'invitation',
-          content: `You've been invited to join ${groupName}`
+          content: `You've been invited to join ${groupName}`,
+          invitation_id: invitationData.id
         } as any);
 
       if (notifError) throw notifError;
 
-      toast.success('Invitation sent');
+      toast.success(`Invitation sent to ${inviteeName}`);
       
       // Remove invited user from list
       setUsers(users.filter(u => u.id !== inviteeId));

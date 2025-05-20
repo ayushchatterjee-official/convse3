@@ -17,7 +17,7 @@ import { Bell } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { MessageSquare, Phone, UserPlus } from 'lucide-react';
+import { MessageSquare, Phone, UserPlus, Check, X } from 'lucide-react';
 
 interface Notification {
   id: string;
@@ -39,6 +39,7 @@ export const NotificationDropdown = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -132,11 +133,56 @@ export const NotificationDropdown = () => {
     if (notification.type === 'message' || notification.type === 'voice_call') {
       navigate(`/chat/${notification.group_id}`);
     } else if (notification.type === 'invitation') {
-      navigate('/explore');
-      toast.success(`You can now join ${notification.group_name} without a password`);
+      navigate('/notifications');
     }
     
     setOpen(false);
+  };
+
+  const handleInvitation = async (notification: Notification, accept: boolean, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (!notification.invitation_id || processingId === notification.id) return;
+    
+    setProcessingId(notification.id);
+    
+    try {
+      // Update the invitation status
+      const { error: inviteError } = await supabase
+        .from('group_invitations' as any)
+        .update({ status: accept ? 'accepted' : 'rejected' })
+        .eq('id', notification.invitation_id);
+      
+      if (inviteError) throw inviteError;
+
+      // If accepted, add user to the group
+      if (accept) {
+        const { error: memberError } = await supabase
+          .from('group_members')
+          .insert({
+            user_id: user?.id,
+            group_id: notification.group_id,
+          });
+        
+        if (memberError) throw memberError;
+        
+        toast.success(`You've joined ${notification.group_name}`);
+      } else {
+        toast.info(`You declined the invitation to ${notification.group_name}`);
+      }
+      
+      // Mark the notification as read
+      await markAsRead(notification.id);
+      
+      // Refresh notifications
+      fetchNotifications();
+      
+    } catch (error) {
+      console.error('Error handling invitation:', error);
+      toast.error('Failed to process invitation');
+    } finally {
+      setProcessingId(null);
+    }
   };
 
   const getNotificationIcon = (type: string) => {
@@ -184,7 +230,19 @@ export const NotificationDropdown = () => {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80">
-        <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+        <DropdownMenuLabel className="flex items-center justify-between">
+          <span>Notifications</span>
+          {notifications.length > 0 && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="text-xs h-7 px-2"
+              onClick={() => navigate('/notifications')}
+            >
+              View All
+            </Button>
+          )}
+        </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <div className="max-h-[400px] overflow-y-auto">
           {notifications.length > 0 ? (
@@ -212,6 +270,31 @@ export const NotificationDropdown = () => {
                         <span className="text-xs text-gray-500">{getTimeAgo(notification.created_at)}</span>
                       </div>
                       <p className="text-xs text-gray-700 dark:text-gray-300">{notification.content}</p>
+                      
+                      {notification.type === 'invitation' && notification.invitation_id && (
+                        <div className="flex items-center gap-2 pt-1">
+                          <Button
+                            size="sm"
+                            variant="default"
+                            onClick={(e) => handleInvitation(notification, true, e)}
+                            disabled={processingId === notification.id}
+                            className="h-7 px-2 text-xs gap-1"
+                          >
+                            <Check className="h-3 w-3" />
+                            Accept
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => handleInvitation(notification, false, e)}
+                            disabled={processingId === notification.id}
+                            className="h-7 px-2 text-xs gap-1"
+                          >
+                            <X className="h-3 w-3" />
+                            Decline
+                          </Button>
+                        </div>
+                      )}
                     </div>
                     {!notification.read && (
                       <div className="w-2 h-2 bg-blue-500 rounded-full"></div>

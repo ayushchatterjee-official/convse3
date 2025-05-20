@@ -21,6 +21,7 @@ import ExploreGroups from "./pages/ExploreGroups";
 import NotFound from "./pages/NotFound";
 import Admin from "./pages/Admin";
 import GroupVoiceCall from "./pages/GroupVoiceCall";
+import Notifications from "./pages/Notifications";
 
 const queryClient = new QueryClient();
 
@@ -49,6 +50,7 @@ const App = () => {
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/explore" element={<ExploreGroups />} />
                   <Route path="/admin" element={<Admin />} />
+                  <Route path="/notifications" element={<Notifications />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </TooltipProvider>

@@ -8,9 +8,9 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { Sidebar, SidebarProvider, SidebarContent } from '@/components/ui/sidebar';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { NotificationDropdown } from '@/components/notification/NotificationDropdown';
-import { User, Home, Settings, Search, LogOut, ShieldCheck, Menu, MessageSquare } from 'lucide-react';
+import { User, Home, Settings, Search, LogOut, ShieldCheck, Menu, MessageSquare, Bell } from 'lucide-react';
 import { toast } from 'sonner';
-import { useOnlineStatus } from '@/hooks/useOnlineStatus'; // Add this import
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -53,6 +53,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     label: 'Explore',
     href: '/explore',
     icon: <Search className="mr-2 h-4 w-4" />
+  }, {
+    label: 'Notifications',
+    href: '/notifications',
+    icon: <Bell className="mr-2 h-4 w-4" />
   }, {
     label: 'Profile',
     href: '/profile',
