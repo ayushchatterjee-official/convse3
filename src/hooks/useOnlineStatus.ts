@@ -42,7 +42,7 @@ export const useOnlineStatus = () => {
     
     setupPresence();
     
-    // Set up a heartbeat to maintain presence
+    // Set up a heartbeat to maintain presence every 30 seconds
     const heartbeat = setInterval(async () => {
       if (channel) {
         try {

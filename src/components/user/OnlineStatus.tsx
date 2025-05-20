@@ -16,7 +16,6 @@ export const OnlineStatus: React.FC<OnlineStatusProps> = ({ userId, className })
     let presenceChannel = supabase.channel('online-users');
     let aborted = false;
     
-    // First, check if the user is already online
     const setupPresence = async () => {
       try {
         console.log(`Setting up presence tracking for user ${userId}`);
@@ -31,34 +30,28 @@ export const OnlineStatus: React.FC<OnlineStatusProps> = ({ userId, className })
             
             // Check if the user is in the presence state
             const allPresences = Object.values(state).flat();
-            console.log('All presences:', allPresences);
             
             const userPresent = allPresences.some(
               (presence: any) => presence.user_id === userId
             );
             
-            console.log(`User ${userId} presence:`, userPresent);
             setIsOnline(userPresent);
           })
           .on('presence', { event: 'join' }, ({ newPresences }) => {
             if (aborted) return;
             
-            console.log('Join event:', newPresences);
             // Check if the joined user is the one we're tracking
             const userJoined = newPresences.some((presence: any) => presence.user_id === userId);
             if (userJoined) {
-              console.log(`User ${userId} joined`);
               setIsOnline(true);
             }
           })
           .on('presence', { event: 'leave' }, ({ leftPresences }) => {
             if (aborted) return;
             
-            console.log('Leave event:', leftPresences);
             // Check if the left user is the one we're tracking
             const userLeft = leftPresences.some((presence: any) => presence.user_id === userId);
             if (userLeft) {
-              console.log(`User ${userId} left`);
               setIsOnline(false);
             }
           })
