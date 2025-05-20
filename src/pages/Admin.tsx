@@ -36,7 +36,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Loader2, Trash2, UserCheck, UserX, CheckCircle } from 'lucide-react';
+import { Loader2, Trash2, UserCheck, UserX, CheckCircle, CircleCheck } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { UserAvatar } from '@/components/user/UserAvatar';
 
