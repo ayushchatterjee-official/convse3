@@ -11,7 +11,6 @@ import { NotificationDropdown } from '@/components/notification/NotificationDrop
 import { User, Home, Settings, Search, LogOut, ShieldCheck, Menu, MessageSquare, Bell } from 'lucide-react';
 import { toast } from 'sonner';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
-
 interface DashboardLayoutProps {
   children: React.ReactNode;
   noPadding?: boolean;
@@ -26,10 +25,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     isAdmin,
     signOut
   } = useAuth();
-  
+
   // Use the hook to track online status
   useOnlineStatus();
-  
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const location = useLocation();
@@ -87,7 +85,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
             <div className="flex flex-col flex-grow pt-5 overflow-y-auto">
               <div className="flex items-center justify-center h-16">
                 <Link to="/dashboard" className="flex items-center gap-2">
-                  <img src="https://cdn.glitch.global/379d6b26-1c93-4dc3-b34f-29fe75cab18e/favicon1.png?v=1716545083192" alt="Connectiverse" className="h-8 w-8" />
+                  <img alt="Connectiverse" className="h-8 w-8" src="/lovable-uploads/3c87cefe-6ed0-43d2-82d0-ac19c25aa8c2.png" />
                   <span className="text-lg font-semibold dark:text-white">
                     Connectiverse
                   </span>
