@@ -86,9 +86,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
               <div className="flex items-center justify-center h-16">
                 <Link to="/dashboard" className="flex items-center gap-2">
                   <img alt="Connectiverse" className="h-8 w-8" src="/lovable-uploads/3c87cefe-6ed0-43d2-82d0-ac19c25aa8c2.png" />
-                  <span className="text-lg font-semibold dark:text-white">
-                    Connectiverse
-                  </span>
+                  <span className="text-lg font-semibold dark:text-white">Environ</span>
                 </Link>
               </div>
               <div className="mt-5 flex-1 px-3">
