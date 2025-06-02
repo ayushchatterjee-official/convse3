@@ -35,7 +35,7 @@ export const GroupInviteDialog: React.FC<GroupInviteDialogProps> = ({
   groupId,
   groupName
 }) => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
@@ -121,7 +121,7 @@ export const GroupInviteDialog: React.FC<GroupInviteDialogProps> = ({
           group_id: groupId,
           invitation_id: invitation.id,
           type: 'invitation',
-          content: `${user.name || 'Someone'} invited you to join ${groupName}`
+          content: `${profile?.name || 'Someone'} invited you to join ${groupName}`
         });
 
       if (notifError) throw notifError;

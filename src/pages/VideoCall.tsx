@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layouts/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
@@ -6,15 +7,12 @@ import { useVideoCall } from '@/contexts/VideoCallContext';
 import { VideoPlayer } from '@/components/video-call/VideoPlayer';
 import { CallControls } from '@/components/video-call/CallControls';
 import { ChatPanel } from '@/components/video-call/ChatPanel';
-import { ParticipantList } from '@/components/video-call/ParticipantList';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { LoaderCircle } from 'lucide-react';
-import { VideoCallParticipant, VideoCallRoom } from '@/models/VideoCallRoom';
 
 const VideoCall: React.FC = () => {
   const { roomCode } = useParams<{ roomCode: string }>();
@@ -32,21 +30,11 @@ const VideoCall: React.FC = () => {
   } = useVideoCall();
 
   const [loading, setLoading] = useState(false);
-  const [roomData, setRoomData] = useState<VideoCallRoom | null>(null);
+  const [currentRoomCode, setCurrentRoomCode] = useState<string | null>(null);
   const [showChat, setShowChat] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
   const [joinInputCode, setJoinInputCode] = useState('');
-  const [requestSent, setRequestSent] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [participants, setParticipants] = useState<VideoCallParticipant[]>([]);
-  const [approvalCheckCount, setApprovalCheckCount] = useState(0);
-
-  // Check if the user is the room admin
-  useEffect(() => {
-    if (roomData && user) {
-      setIsAdmin(roomData.admin_id === user.id);
-    }
-  }, [roomData, user]);
+  const [inCall, setInCall] = useState(false);
 
   // Initialize local stream when component mounts
   useEffect(() => {
@@ -66,33 +54,10 @@ const VideoCall: React.FC = () => {
 
   // Handle room code from URL
   useEffect(() => {
-    if (roomCode && !roomData && user && localStream) {
+    if (roomCode && !inCall && user && localStream) {
       handleJoinWithCode(roomCode);
     }
   }, [roomCode, user, localStream]);
-
-  // Fetch participants for the current room
-  useEffect(() => {
-    if (!roomData) return;
-
-    const fetchParticipants = async () => {
-      const { data, error } = await supabase
-        .rpc('get_room_participants', { room_id_param: roomData.id });
-      
-      if (!error && data) {
-        setParticipants(data as VideoCallParticipant[]);
-      }
-    };
-    
-    fetchParticipants();
-    
-    // Poll for changes - shorter interval for better responsiveness
-    const intervalId = setInterval(fetchParticipants, 2000);
-    
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, [roomData]);
 
   // Handle creating a new room
   const handleCreateRoom = async () => {
@@ -103,12 +68,13 @@ const VideoCall: React.FC = () => {
 
     setLoading(true);
     try {
-      const newRoomData = await createRoom();
-      if (newRoomData) {
-        setRoomData(newRoomData);
-        if (await joinRoom(newRoomData.id)) {
+      const newRoomCode = await createRoom();
+      if (newRoomCode) {
+        setCurrentRoomCode(newRoomCode);
+        if (await joinRoom(newRoomCode)) {
+          setInCall(true);
           // Navigate to the room URL to make it shareable
-          navigate(`/video-call/${newRoomData.code}`);
+          navigate(`/video-call/${newRoomCode}`);
         }
       }
     } catch (error) {
@@ -133,78 +99,11 @@ const VideoCall: React.FC = () => {
 
     setLoading(true);
     try {
-      // Find the room with this code
-      const { data: roomData, error: roomError } = await supabase
-        .from('video_call_rooms')
-        .select('*')
-        .eq('code', code)
-        .eq('active', true)
-        .single();
-
-      if (roomError || !roomData) {
-        toast.error('Room not found or inactive');
-        return;
+      setCurrentRoomCode(code);
+      if (await joinRoom(code)) {
+        setInCall(true);
+        toast.success('Joined room successfully');
       }
-
-      // Check if the user is already a participant
-      const { data: participantData } = await supabase
-        .from('video_call_participants')
-        .select('*')
-        .eq('room_id', roomData.id)
-        .eq('user_id', user.id)
-        .single();
-
-      if (participantData && participantData.approved) {
-        // User is already an approved participant
-        setRoomData(roomData as VideoCallRoom);
-        await joinRoom(roomData.id);
-      } else if (roomData.admin_id === user.id) {
-        // User is the admin of the room
-        setRoomData(roomData as VideoCallRoom);
-        await joinRoom(roomData.id);
-        
-        // Ensure admin is always approved
-        await supabase
-          .from('video_call_participants')
-          .upsert({
-            user_id: user.id,
-            room_id: roomData.id,
-            is_admin: true,
-            approved: true
-          });
-      } else {
-        // User needs approval to join
-        // Check if there is already a join request
-        const { data: existingRequest, error: requestError } = await supabase
-          .from('video_call_join_requests')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('room_id', roomData.id)
-          .eq('status', 'pending')
-          .single();
-          
-        if (!existingRequest) {
-          // Create join request if none exists
-          await supabase
-            .from('video_call_join_requests')
-            .upsert({
-              user_id: user.id,
-              room_id: roomData.id,
-              status: 'pending',
-              created_at: new Date().toISOString()
-            });
-        }
-
-        setRoomData(roomData as VideoCallRoom);
-        setRequestSent(true);
-        toast.info('Join request sent. Waiting for approval.');
-      }
-
-      // Update room's last activity
-      await supabase
-        .from('video_call_rooms')
-        .update({ last_activity: new Date().toISOString() })
-        .eq('id', roomData.id);
     } catch (error) {
       console.error('Error joining room:', error);
       toast.error('Failed to join room');
@@ -216,68 +115,10 @@ const VideoCall: React.FC = () => {
   // Handle user leaving the call
   const handleLeaveCall = () => {
     leaveCall();
-    setRoomData(null);
-    setRequestSent(false);
+    setCurrentRoomCode(null);
+    setInCall(false);
     navigate('/dashboard');
   };
-
-  // Check if user's join request is approved - with improved checking
-  const checkApproval = useCallback(async () => {
-    if (!user || !roomData || !requestSent) return;
-    
-    console.log("Checking approval status");
-    
-    try {
-      // Check if the user is now approved
-      const { data, error } = await supabase
-        .from('video_call_participants')
-        .select('*')
-        .eq('room_id', roomData.id)
-        .eq('user_id', user.id)
-        .eq('approved', true)
-        .single();
-
-      if (error && error.code !== 'PGRST116') { // Not found error code
-        console.error("Error checking approval:", error);
-        return;
-      }
-
-      if (data) {
-        console.log("Approval found:", data);
-        setRequestSent(false);
-        await joinRoom(roomData.id);
-        toast.success('Your join request was approved');
-      } else {
-        console.log("No approval found yet");
-      }
-    } catch (error) {
-      console.error("Error in checkApproval:", error);
-    }
-  }, [user, roomData, requestSent, joinRoom]);
-
-  // Run the approval check every time approvalCheckCount changes
-  useEffect(() => {
-    if (requestSent) {
-      checkApproval();
-    }
-  }, [checkApproval, requestSent, approvalCheckCount]);
-
-  // Set up periodic checking with a counter to ensure fresh checks
-  useEffect(() => {
-    if (!requestSent) return;
-    
-    // Check immediately on mount
-    setApprovalCheckCount(prev => prev + 1);
-    
-    // Then check periodically
-    const intervalId = setInterval(() => {
-      setApprovalCheckCount(prev => prev + 1);
-    }, 2000); // Check more frequently
-    
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, [requestSent]);
 
   // Main content when not in a call
   const renderJoinScreen = () => {
@@ -316,14 +157,14 @@ const VideoCall: React.FC = () => {
               </div>
 
               <div className="text-sm text-gray-500">
-                Enter the 6-digit code provided by the call creator.
+                Enter the room code provided by the call creator.
               </div>
             </TabsContent>
 
             <TabsContent value="create" className="space-y-4">
               <div className="text-center">
                 <p className="mb-4 text-sm text-gray-500">
-                  Create a new video call room. You'll be the admin and can approve who joins.
+                  Create a new video call room and share the code with others.
                 </p>
                 <Button 
                   onClick={handleCreateRoom} 
@@ -341,29 +182,6 @@ const VideoCall: React.FC = () => {
     );
   };
 
-  // Render waiting for approval screen
-  const renderWaitingScreen = () => {
-    return (
-      <div className="container max-w-md mx-auto py-8">
-        <Card className="p-6 text-center">
-          <h1 className="text-2xl font-bold mb-4">Waiting for Approval</h1>
-          <p className="mb-6 text-gray-500">
-            Your request to join this call is pending approval from the room admin.
-          </p>
-          <div className="animate-pulse flex justify-center mb-6">
-            <div className="h-10 w-10 bg-blue-400 rounded-full"></div>
-          </div>
-          <Button 
-            variant="outline" 
-            onClick={handleLeaveCall}
-          >
-            Cancel Request
-          </Button>
-        </Card>
-      </div>
-    );
-  };
-
   // Main content when in a call
   const renderCallScreen = () => {
     // Convert Map to Array for rendering
@@ -375,7 +193,7 @@ const VideoCall: React.FC = () => {
     return (
       <div className="h-full flex flex-col">
         <div className="flex-1 flex">
-          <div className={`flex-1 p-4 ${showChat || showParticipants ? 'lg:pr-0' : ''}`}>
+          <div className={`flex-1 p-4 ${showChat ? 'lg:pr-0' : ''}`}>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-full">
               {/* Local user video */}
               <div className="w-full h-full">
@@ -394,9 +212,7 @@ const VideoCall: React.FC = () => {
                 <div key={userId} className="w-full h-full">
                   <VideoPlayer
                     stream={stream}
-                    username={
-                      participants.find(p => p.user_id === userId)?.user_name || 'User'
-                    }
+                    username="Remote User"
                   />
                 </div>
               ))}
@@ -412,19 +228,10 @@ const VideoCall: React.FC = () => {
             </div>
           </div>
 
-          {/* Right sidebar for chat or participants */}
+          {/* Right sidebar for chat */}
           {showChat && (
             <div className="w-full lg:w-80 h-full">
               <ChatPanel />
-            </div>
-          )}
-
-          {showParticipants && !showChat && roomData && (
-            <div className="w-full lg:w-80 h-full">
-              <ParticipantList
-                roomId={roomData.id}
-                isAdmin={isAdmin}
-              />
             </div>
           )}
         </div>
@@ -440,10 +247,10 @@ const VideoCall: React.FC = () => {
         </div>
 
         {/* Room code display for sharing */}
-        {roomData && (
+        {currentRoomCode && (
           <div className="bg-gray-50 dark:bg-gray-900 p-2 border-t border-gray-200 dark:border-gray-700 text-center text-sm">
             <span className="text-gray-500">Room Code: </span>
-            <span className="font-mono font-bold">{roomData.code}</span>
+            <span className="font-mono font-bold">{currentRoomCode}</span>
             <span className="text-gray-500 ml-2">
               (Share this code with others to invite them)
             </span>
@@ -455,9 +262,8 @@ const VideoCall: React.FC = () => {
 
   return (
     <DashboardLayout>
-      {requestSent && renderWaitingScreen()}
-      {!requestSent && !roomData && renderJoinScreen()}
-      {!requestSent && roomData && renderCallScreen()}
+      {!inCall && renderJoinScreen()}
+      {inCall && renderCallScreen()}
     </DashboardLayout>
   );
 };

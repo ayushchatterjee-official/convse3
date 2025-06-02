@@ -1,6 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import React, { createContext, useContext, useState, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
 
@@ -46,8 +45,7 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const [isSharingScreen, setIsSharingScreen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const peerConnections = useRef<Map<string, PeerConnection>>(new Map());
-  const currentRoomId = useRef<string | null>(null);
+  const [peerConnections] = useState<Map<string, PeerConnection>>(new Map());
   
   // Function to initialize the local video stream
   const initializeLocalStream = async (): Promise<boolean> => {
@@ -76,7 +74,7 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
   
-  // Function to toggle audio - improved with reliable state updates
+  // Function to toggle audio
   const toggleAudio = useCallback(() => {
     if (!localStream) return;
     
@@ -90,7 +88,7 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     console.log(`Audio ${newEnabledState ? 'enabled' : 'disabled'}`);
   }, [localStream, isAudioEnabled]);
   
-  // Function to toggle video - improved with reliable state updates
+  // Function to toggle video
   const toggleVideo = useCallback(() => {
     if (!localStream) return;
     
@@ -125,19 +123,6 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setLocalStream(stream);
         setIsSharingScreen(false);
         setIsVideoEnabled(true);
-        
-        // Update all peer connections with new stream
-        peerConnections.current.forEach((peer) => {
-          const senders = peer.connection.getSenders();
-          senders.forEach((sender) => {
-            if (sender.track?.kind === 'video') {
-              const track = stream.getVideoTracks()[0];
-              if (track) {
-                sender.replaceTrack(track);
-              }
-            }
-          });
-        });
       } else {
         // Start screen sharing
         const screenStream = await navigator.mediaDevices.getDisplayMedia({
@@ -158,19 +143,8 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setLocalStream(newStream);
         setIsSharingScreen(true);
         
-        // Update all peer connections with new stream
-        peerConnections.current.forEach((peer) => {
-          const senders = peer.connection.getSenders();
-          senders.forEach((sender) => {
-            if (sender.track?.kind === 'video') {
-              sender.replaceTrack(screenVideoTrack);
-            }
-          });
-        });
-        
         // When screen sharing stops
         screenVideoTrack.addEventListener('ended', async () => {
-          // Go back to camera
           await toggleScreenShare();
         });
       }
@@ -182,7 +156,7 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Function to send a chat message
   const sendChatMessage = (content: string) => {
-    if (!content.trim() || !user || !currentRoomId.current) return;
+    if (!content.trim() || !user) return;
     
     const newMessage: ChatMessage = {
       id: crypto.randomUUID(),
@@ -193,19 +167,10 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
     
     setMessages(prev => [...prev, newMessage]);
-    
-    // Send message to other participants via Supabase Realtime
-    // This could be enhanced with direct WebRTC data channels for better performance
-    supabase
-      .channel(`room:${currentRoomId.current}`)
-      .send({
-        type: 'broadcast',
-        event: 'chat',
-        payload: newMessage
-      });
+    console.log('Chat message sent:', newMessage);
   };
 
-  // Function to create a new room - simplified version
+  // Simplified room creation - just generates an ID
   const createRoom = async (): Promise<string | null> => {
     if (!user) {
       toast.error('You must be logged in to create a room');
@@ -213,9 +178,7 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
     
     try {
-      // Generate a simple room ID for now
       const roomId = `room_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
       console.log("Created room:", roomId);
       toast.success("Room created successfully");
       return roomId;
@@ -226,7 +189,7 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
-  // Function to join a room - simplified version
+  // Simplified room joining
   const joinRoom = async (roomId: string): Promise<boolean> => {
     if (!user || !localStream) {
       toast.error('You must be logged in and have camera access to join a call');
@@ -234,8 +197,6 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
     
     try {
-      currentRoomId.current = roomId;
-      
       console.log("Joining room:", roomId);
       toast.success("Room joined successfully");
       return true;
@@ -246,20 +207,10 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
   
-  // Function to leave the current call - improved to ensure all tracks are properly stopped
+  // Function to leave the current call
   const leaveCall = async () => {
-    if (!currentRoomId.current || !user) return;
-    
     try {
       console.log("Leaving call, stopping all connections and streams");
-      
-      // Close all peer connections
-      peerConnections.current.forEach((peer) => {
-        peer.connection.close();
-      });
-      
-      peerConnections.current.clear();
-      setRemoteStreams(new Map());
       
       // Clear local state
       setMessages([]);
@@ -274,7 +225,6 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setLocalStream(null);
       }
       
-      currentRoomId.current = null;
       setIsVideoEnabled(false);
       setIsAudioEnabled(false);
       setIsSharingScreen(false);
@@ -284,76 +234,6 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       console.error('Error leaving call:', error);
     }
   };
-
-  // Helper function to create a peer connection
-  const createPeerConnection = async (peerId: string, isInitiator: boolean): Promise<RTCPeerConnection> => {
-    if (!localStream || !user) {
-      throw new Error('Local stream or user not available');
-    }
-    
-    const iceServers = {
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' },
-      ],
-    };
-    
-    // Create new RTCPeerConnection
-    const peerConnection = new RTCPeerConnection(iceServers);
-    
-    // Add local stream tracks to the connection
-    localStream.getTracks().forEach(track => {
-      peerConnection.addTrack(track, localStream);
-    });
-    
-    // Set up event handlers
-    peerConnection.onicecandidate = (event) => {
-      if (event.candidate && currentRoomId.current) {
-        // This would send ICE candidate to the peer via Supabase Realtime
-        console.log("ICE candidate generated", event.candidate);
-      }
-    };
-    
-    peerConnection.ontrack = (event) => {
-      // Add remote stream
-      const stream = event.streams[0];
-      console.log("Remote track received", stream);
-      setRemoteStreams(prev => {
-        const newStreams = new Map(prev);
-        newStreams.set(peerId, stream);
-        return newStreams;
-      });
-    };
-    
-    // Store the connection
-    peerConnections.current.set(peerId, {
-      userId: peerId,
-      connection: peerConnection,
-      stream: localStream
-    });
-    
-    return peerConnection;
-  };
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      console.log("VideoCallProvider unmounting, cleaning up resources");
-      
-      // Close all peer connections
-      peerConnections.current.forEach((peer) => {
-        peer.connection.close();
-      });
-      
-      // Stop local stream tracks
-      if (localStream) {
-        localStream.getTracks().forEach(track => {
-          track.stop();
-        });
-      }
-    };
-  }, []);
 
   return (
     <VideoCallContext.Provider
@@ -372,7 +252,7 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         leaveCall,
         joinRoom,
         createRoom,
-        peerConnections: peerConnections.current,
+        peerConnections,
       }}
     >
       {children}
