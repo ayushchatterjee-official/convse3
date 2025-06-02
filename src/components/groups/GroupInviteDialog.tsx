@@ -60,30 +60,17 @@ export const GroupInviteDialog: React.FC<GroupInviteDialogProps> = ({
         const memberIds = members?.map(m => m.user_id) || [];
         memberIds.push(user?.id || ''); // Add current user to exclude list
 
-        // Get existing invitation recipient IDs
-        const { data: invitations } = await supabase
-          .from('group_invitations' as any)
-          .select('invitee_id')
-          .eq('group_id', groupId)
-          .eq('status', 'pending');
-
-        const inviteeIds = invitations?.map((i: any) => i.invitee_id) || [];
-        
-        // Combine exclusion lists
-        const excludeIds = [...new Set([...memberIds, ...inviteeIds])];
-
-        // Search for users by name
+        // Search for users by name, excluding existing members
         const { data, error } = await supabase
           .from('profiles')
           .select('id, name, profile_pic')
           .ilike('name', `%${searchQuery}%`)
+          .not('id', 'in', `(${memberIds.map(id => `"${id}"`).join(',')})`)
           .limit(10);
 
         if (error) throw error;
 
-        // Filter out existing members and invited users
-        const filteredUsers = data.filter(u => !excludeIds.includes(u.id));
-        setUsers(filteredUsers);
+        setUsers(data || []);
       } catch (error) {
         console.error('Error searching users:', error);
         toast.error('Failed to search users');
@@ -111,31 +98,16 @@ export const GroupInviteDialog: React.FC<GroupInviteDialogProps> = ({
       if (inviteeError) throw inviteeError;
       const inviteeName = inviteeData.name;
       
-      // Create invitation record
-      const { data: invitationData, error: inviteError } = await supabase
-        .from('group_invitations' as any)
-        .insert({
-          group_id: groupId,
-          inviter_id: user.id,
-          invitee_id: inviteeId,
-          status: 'pending'
-        } as any)
-        .select('id')
-        .single();
-
-      if (inviteError) throw inviteError;
-
-      // Create notification
+      // Create notification directly (since group_invitations table doesn't exist)
       const { error: notifError } = await supabase
-        .from('notifications' as any)
+        .from('notifications')
         .insert({
           recipient_id: inviteeId,
           sender_id: user.id,
           group_id: groupId,
           type: 'invitation',
-          content: `You've been invited to join ${groupName}`,
-          invitation_id: invitationData.id
-        } as any);
+          content: `${user.name || 'Someone'} invited you to join ${groupName}`
+        });
 
       if (notifError) throw notifError;
 
@@ -191,7 +163,7 @@ export const GroupInviteDialog: React.FC<GroupInviteDialogProps> = ({
             </div>
           ) : users.length === 0 ? (
             <p className="text-sm text-center text-gray-500 py-4">
-              No users found or all users are already members/invited
+              No users found or all users are already members
             </p>
           ) : (
             <div className="max-h-[240px] overflow-y-auto space-y-2">
