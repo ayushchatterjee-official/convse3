@@ -1,8 +1,8 @@
+
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
-import { VideoCallRoom } from '@/models/VideoCallRoom';
 
 interface PeerConnection {
   userId: string;
@@ -24,7 +24,7 @@ interface VideoCallContextType {
   sendChatMessage: (content: string) => void;
   leaveCall: () => void;
   joinRoom: (roomId: string) => Promise<boolean>;
-  createRoom: () => Promise<VideoCallRoom | null>;
+  createRoom: () => Promise<string | null>;
   peerConnections: Map<string, PeerConnection>;
 }
 
@@ -205,45 +205,20 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       });
   };
 
-  // Function to create a new room
-  const createRoom = async (): Promise<VideoCallRoom | null> => {
+  // Function to create a new room - simplified version
+  const createRoom = async (): Promise<string | null> => {
     if (!user) {
       toast.error('You must be logged in to create a room');
       return null;
     }
     
     try {
-      // Generate a 6-digit room code
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      // Generate a simple room ID for now
+      const roomId = `room_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      // Insert the room into the video_call_rooms table
-      const { data: roomData, error } = await supabase
-        .from('video_call_rooms')
-        .insert({
-          code: code,
-          admin_id: user.id, 
-          last_activity: new Date().toISOString(),
-          active: true
-        })
-        .select('*')
-        .single();
-        
-      if (error) {
-        console.error("Room creation error:", error);
-        throw error;
-      }
-      
-      // Add the creator as a participant
-      await supabase
-        .from('video_call_participants')
-        .insert({
-          user_id: user.id,
-          room_id: roomData.id,
-          is_admin: true,
-          approved: true
-        });
-      
-      return roomData as VideoCallRoom;
+      console.log("Created room:", roomId);
+      toast.success("Room created successfully");
+      return roomId;
     } catch (error) {
       console.error('Error creating room:', error);
       toast.error('Failed to create room');
@@ -251,7 +226,7 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
-  // Function to join a room
+  // Function to join a room - simplified version
   const joinRoom = async (roomId: string): Promise<boolean> => {
     if (!user || !localStream) {
       toast.error('You must be logged in and have camera access to join a call');
@@ -260,31 +235,6 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     
     try {
       currentRoomId.current = roomId;
-      
-      // Update room's last activity
-      await supabase
-        .from('video_call_rooms')
-        .update({ last_activity: new Date().toISOString() })
-        .eq('id', roomId);
-      
-      // Check if user is already a participant
-      const { data: participantData } = await supabase
-        .from('video_call_participants')
-        .select('*')
-        .eq('room_id', roomId)
-        .eq('user_id', user.id)
-        .single();
-      
-      if (!participantData) {
-        // If not already a participant, add as participant (based on approval)
-        await supabase
-          .from('video_call_participants')
-          .insert({
-            user_id: user.id,
-            room_id: roomId,
-            approved: false // This will be updated when approved by admin
-          });
-      }
       
       console.log("Joining room:", roomId);
       toast.success("Room joined successfully");

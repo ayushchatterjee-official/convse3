@@ -97,14 +97,29 @@ export const GroupInviteDialog: React.FC<GroupInviteDialogProps> = ({
 
       if (inviteeError) throw inviteeError;
       const inviteeName = inviteeData.name;
+
+      // Create group invitation record
+      const { data: invitation, error: inviteError } = await supabase
+        .from('group_invitations')
+        .insert({
+          inviter_id: user.id,
+          invitee_id: inviteeId,
+          group_id: groupId,
+          status: 'pending'
+        })
+        .select()
+        .single();
+
+      if (inviteError) throw inviteError;
       
-      // Create notification directly (since group_invitations table doesn't exist)
+      // Create notification for the invitee
       const { error: notifError } = await supabase
         .from('notifications')
         .insert({
           recipient_id: inviteeId,
           sender_id: user.id,
           group_id: groupId,
+          invitation_id: invitation.id,
           type: 'invitation',
           content: `${user.name || 'Someone'} invited you to join ${groupName}`
         });
