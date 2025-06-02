@@ -36,6 +36,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "fk_group_invitations_group"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "group_invitations_group_id_fkey"
             columns: ["group_id"]
             isOneToOne: false
@@ -237,6 +244,20 @@ export type Database = {
           type?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "fk_notifications_group"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_notifications_invitation"
+            columns: ["invitation_id"]
+            isOneToOne: false
+            referencedRelation: "group_invitations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "notifications_group_id_fkey"
             columns: ["group_id"]

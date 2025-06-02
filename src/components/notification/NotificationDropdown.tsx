@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -67,20 +66,19 @@ export const NotificationDropdown = () => {
     if (!user) return;
 
     try {
-      // Use any() as a workaround for the typings
       const { data, error } = await supabase
-        .from('notifications' as any)
+        .from('notifications')
         .select(`
           id,
           type,
           group_id,
-          groups:group_id (name),
           sender_id,
-          sender:sender_id (name, profile_pic),
           created_at,
           read,
           content,
-          invitation_id
+          invitation_id,
+          groups!notifications_group_id_fkey (name),
+          profiles!notifications_sender_id_fkey (name, profile_pic)
         `)
         .eq('recipient_id', user.id)
         .order('created_at', { ascending: false })
@@ -94,8 +92,8 @@ export const NotificationDropdown = () => {
         group_id: n.group_id,
         group_name: n.groups?.name || 'Unknown Group',
         sender_id: n.sender_id,
-        sender_name: n.sender?.name || 'Unknown User',
-        sender_profile_pic: n.sender?.profile_pic,
+        sender_name: n.profiles?.name || 'Unknown User',
+        sender_profile_pic: n.profiles?.profile_pic,
         created_at: n.created_at,
         read: n.read,
         content: n.content,
@@ -111,9 +109,8 @@ export const NotificationDropdown = () => {
 
   const markAsRead = async (notificationId: string) => {
     try {
-      // Use any() as a workaround for the typings
       await supabase
-        .from('notifications' as any)
+        .from('notifications')
         .update({ read: true })
         .eq('id', notificationId);
 
@@ -149,7 +146,7 @@ export const NotificationDropdown = () => {
     try {
       // Update the invitation status
       const { error: inviteError } = await supabase
-        .from('group_invitations' as any)
+        .from('group_invitations')
         .update({ status: accept ? 'accepted' : 'rejected' })
         .eq('id', notification.invitation_id);
       
