@@ -22,6 +22,7 @@ import NotFound from "./pages/NotFound";
 import Admin from "./pages/Admin";
 import GroupVoiceCall from "./pages/GroupVoiceCall";
 import Notifications from "./pages/Notifications";
+import Posts from "./pages/Posts";
 
 const queryClient = new QueryClient();
 
@@ -34,7 +35,7 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <ThemeProvider defaultTheme="light" storageKey="connectiverse-theme">
+        <ThemeProvider defaultTheme="light" storageKey="environ-theme">
           <AuthProvider>
             <VoiceCallProvider>
               <TooltipProvider>
@@ -44,6 +45,7 @@ const App = () => {
                   <Route path="/" element={<Index />} />
                   <Route path="/auth" element={<Auth />} />
                   <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/posts" element={<Posts />} />
                   <Route path="/chat/:groupId" element={<ChatRoom />} />
                   <Route path="/voice-call/:groupId" element={<GroupVoiceCall />} />
                   <Route path="/profile" element={<Profile />} />
