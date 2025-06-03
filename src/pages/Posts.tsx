@@ -38,21 +38,17 @@ const Posts = () => {
     try {
       setLoading(true);
 
-      // Fetch posts with user info
+      // Fetch posts using raw SQL query
       const { data: postsData, error: postsError } = await supabase
-        .from('posts')
-        .select(`
-          id,
-          user_id,
-          content,
-          media_urls,
-          media_types,
-          likes_count,
-          comments_count,
-          created_at
-        `)
-        .order('created_at', { ascending: false })
-        .limit(20);
+        .rpc('exec_sql', {
+          sql: `
+            SELECT id, user_id, content, media_urls, media_types, 
+                   likes_count, comments_count, created_at
+            FROM posts
+            ORDER BY created_at DESC
+            LIMIT 20
+          `
+        });
 
       if (postsError) throw postsError;
 
@@ -62,7 +58,7 @@ const Posts = () => {
       }
 
       // Get unique user IDs
-      const userIds = [...new Set(postsData.map(p => p.user_id))];
+      const userIds = [...new Set(postsData.map((p: any) => p.user_id))];
 
       // Fetch user profiles
       const { data: profilesData, error: profilesError } = await supabase
@@ -76,10 +72,14 @@ const Posts = () => {
 
       // Get user likes for these posts
       const { data: likesData, error: likesError } = await supabase
-        .from('post_likes')
-        .select('post_id')
-        .eq('user_id', user.id)
-        .in('post_id', postsData.map(p => p.id));
+        .rpc('exec_sql', {
+          sql: `
+            SELECT post_id
+            FROM post_likes
+            WHERE user_id = $1 AND post_id = ANY($2)
+          `,
+          params: [user.id, postsData.map((p: any) => p.id)]
+        });
 
       if (likesError) {
         console.error('Error fetching likes:', likesError);
@@ -87,10 +87,10 @@ const Posts = () => {
 
       // Create lookup maps
       const profilesMap = new Map((profilesData || []).map(p => [p.id, p]));
-      const likedPostsSet = new Set((likesData || []).map(l => l.post_id));
+      const likedPostsSet = new Set((likesData || []).map((l: any) => l.post_id));
 
       // Format posts with joined data
-      const formattedPosts = postsData.map((post): Post => {
+      const formattedPosts = postsData.map((post: any): Post => {
         const profile = profilesMap.get(post.user_id);
         
         return {
@@ -127,16 +127,25 @@ const Posts = () => {
     try {
       if (liked) {
         const { error } = await supabase
-          .from('post_likes')
-          .insert({ post_id: postId, user_id: user.id });
+          .rpc('exec_sql', {
+            sql: `
+              INSERT INTO post_likes (post_id, user_id)
+              VALUES ($1, $2)
+              ON CONFLICT (post_id, user_id) DO NOTHING
+            `,
+            params: [postId, user.id]
+          });
         
         if (error) throw error;
       } else {
         const { error } = await supabase
-          .from('post_likes')
-          .delete()
-          .eq('post_id', postId)
-          .eq('user_id', user.id);
+          .rpc('exec_sql', {
+            sql: `
+              DELETE FROM post_likes
+              WHERE post_id = $1 AND user_id = $2
+            `,
+            params: [postId, user.id]
+          });
         
         if (error) throw error;
       }

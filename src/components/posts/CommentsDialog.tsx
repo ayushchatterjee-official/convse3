@@ -41,12 +41,17 @@ export const CommentsDialog = ({ post, open, onOpenChange }: CommentsDialogProps
   const fetchComments = async () => {
     setLoading(true);
     try {
-      // Fetch comments
+      // Fetch comments using raw SQL query
       const { data: commentsData, error: commentsError } = await supabase
-        .from('post_comments')
-        .select('id, user_id, content, created_at')
-        .eq('post_id', post.id)
-        .order('created_at', { ascending: true });
+        .rpc('exec_sql', {
+          sql: `
+            SELECT id, user_id, content, created_at
+            FROM post_comments 
+            WHERE post_id = $1
+            ORDER BY created_at ASC
+          `,
+          params: [post.id]
+        });
 
       if (commentsError) throw commentsError;
 
@@ -56,7 +61,7 @@ export const CommentsDialog = ({ post, open, onOpenChange }: CommentsDialogProps
       }
 
       // Get unique user IDs
-      const userIds = [...new Set(commentsData.map(c => c.user_id))];
+      const userIds = [...new Set(commentsData.map((c: any) => c.user_id))];
 
       // Fetch user profiles
       const { data: profilesData, error: profilesError } = await supabase
@@ -72,7 +77,7 @@ export const CommentsDialog = ({ post, open, onOpenChange }: CommentsDialogProps
       const profilesMap = new Map((profilesData || []).map(p => [p.id, p]));
 
       // Format comments with user data
-      const formattedComments = commentsData.map((comment): Comment => {
+      const formattedComments = commentsData.map((comment: any): Comment => {
         const profile = profilesMap.get(comment.user_id);
         
         return {
@@ -102,11 +107,12 @@ export const CommentsDialog = ({ post, open, onOpenChange }: CommentsDialogProps
     setSubmitting(true);
     try {
       const { error } = await supabase
-        .from('post_comments')
-        .insert({
-          post_id: post.id,
-          user_id: user.id,
-          content: newComment.trim()
+        .rpc('exec_sql', {
+          sql: `
+            INSERT INTO post_comments (post_id, user_id, content)
+            VALUES ($1, $2, $3)
+          `,
+          params: [post.id, user.id, newComment.trim()]
         });
 
       if (error) throw error;
