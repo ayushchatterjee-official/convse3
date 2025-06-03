@@ -48,6 +48,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     href: '/dashboard',
     icon: <Home className="mr-2 h-4 w-4" />
   }, {
+    label: 'Posts',
+    href: '/posts',
+    icon: <MessageSquare className="mr-2 h-4 w-4" />
+  }, {
     label: 'Explore',
     href: '/explore',
     icon: <Search className="mr-2 h-4 w-4" />

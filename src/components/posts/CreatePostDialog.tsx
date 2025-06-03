@@ -65,19 +65,14 @@ export const CreatePostDialog = ({ children, onPostCreated }: CreatePostDialogPr
         }
       }
 
-      // Create post using raw SQL
+      // Create post using direct supabase insert
       const { error } = await supabase
-        .rpc('exec_sql', {
-          sql: `
-            INSERT INTO posts (user_id, content, media_urls, media_types)
-            VALUES ($1, $2, $3, $4)
-          `,
-          params: [
-            user.id,
-            content.trim() || null,
-            mediaUrls.length > 0 ? mediaUrls : null,
-            mediaTypes.length > 0 ? mediaTypes : null
-          ]
+        .from('posts')
+        .insert({
+          user_id: user.id,
+          content: content.trim() || null,
+          media_urls: mediaUrls.length > 0 ? mediaUrls : null,
+          media_types: mediaTypes.length > 0 ? mediaTypes : null
         });
 
       if (error) throw error;
