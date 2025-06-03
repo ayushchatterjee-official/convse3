@@ -66,7 +66,8 @@ export const NotificationDropdown = () => {
     if (!user) return;
 
     try {
-      const { data, error } = await supabase
+      // First, get notifications with group names
+      const { data: notificationsData, error: notificationsError } = await supabase
         .from('notifications')
         .select(`
           id,
@@ -76,34 +77,86 @@ export const NotificationDropdown = () => {
           created_at,
           read,
           content,
-          invitation_id,
-          groups!notifications_group_id_fkey (name),
-          profiles!notifications_sender_id_fkey (name, profile_pic)
+          invitation_id
         `)
         .eq('recipient_id', user.id)
         .order('created_at', { ascending: false })
         .limit(20);
 
-      if (error) throw error;
+      if (notificationsError) {
+        console.error('Error fetching notifications:', notificationsError);
+        throw notificationsError;
+      }
 
-      const formattedNotifications = data.map((n: any): Notification => ({
-        id: n.id,
-        type: n.type,
-        group_id: n.group_id,
-        group_name: n.groups?.name || 'Unknown Group',
-        sender_id: n.sender_id,
-        sender_name: n.profiles?.name || 'Unknown User',
-        sender_profile_pic: n.profiles?.profile_pic,
-        created_at: n.created_at,
-        read: n.read,
-        content: n.content,
-        invitation_id: n.invitation_id
-      }));
+      if (!notificationsData || notificationsData.length === 0) {
+        setNotifications([]);
+        setUnreadCount(0);
+        return;
+      }
+
+      // Get unique group IDs and sender IDs
+      const groupIds = [...new Set(notificationsData.map(n => n.group_id).filter(Boolean))];
+      const senderIds = [...new Set(notificationsData.map(n => n.sender_id).filter(Boolean))];
+
+      // Fetch group names
+      let groupsData = [];
+      if (groupIds.length > 0) {
+        const { data: groups, error: groupsError } = await supabase
+          .from('groups')
+          .select('id, name')
+          .in('id', groupIds);
+        
+        if (groupsError) {
+          console.error('Error fetching groups:', groupsError);
+        } else {
+          groupsData = groups || [];
+        }
+      }
+
+      // Fetch sender profiles
+      let profilesData = [];
+      if (senderIds.length > 0) {
+        const { data: profiles, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, name, profile_pic')
+          .in('id', senderIds);
+        
+        if (profilesError) {
+          console.error('Error fetching profiles:', profilesError);
+        } else {
+          profilesData = profiles || [];
+        }
+      }
+
+      // Create lookup maps
+      const groupsMap = new Map(groupsData.map(g => [g.id, g]));
+      const profilesMap = new Map(profilesData.map(p => [p.id, p]));
+
+      // Format notifications with joined data
+      const formattedNotifications = notificationsData.map((n): Notification => {
+        const group = groupsMap.get(n.group_id);
+        const profile = profilesMap.get(n.sender_id);
+
+        return {
+          id: n.id,
+          type: n.type,
+          group_id: n.group_id,
+          group_name: group?.name || 'Unknown Group',
+          sender_id: n.sender_id,
+          sender_name: profile?.name || 'Unknown User',
+          sender_profile_pic: profile?.profile_pic,
+          created_at: n.created_at,
+          read: n.read,
+          content: n.content,
+          invitation_id: n.invitation_id
+        };
+      });
 
       setNotifications(formattedNotifications);
       setUnreadCount(formattedNotifications.filter(n => !n.read).length);
     } catch (error) {
-      console.error('Error fetching notifications:', error);
+      console.error('Error in fetchNotifications:', error);
+      toast.error('Failed to load notifications');
     }
   };
 
