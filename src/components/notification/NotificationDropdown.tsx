@@ -139,7 +139,7 @@ export const NotificationDropdown = () => {
 
         return {
           id: n.id,
-          type: n.type,
+          type: n.type as 'message' | 'voice_call' | 'invitation',
           group_id: n.group_id,
           group_name: group?.name || 'Unknown Group',
           sender_id: n.sender_id,
