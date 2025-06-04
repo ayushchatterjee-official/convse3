@@ -1,9 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Heart, MessageSquare, Download } from 'lucide-react';
+import { Heart, MessageSquare, Download, Play, Pause } from 'lucide-react';
 import { Post } from '@/pages/Posts';
 import { CommentsDialog } from './CommentsDialog';
 import { MediaModal } from './MediaModal';
@@ -20,6 +20,9 @@ export const PostCard = ({ post, onLikeToggle }: PostCardProps) => {
     type: string;
     index: number;
   } | null>(null);
+  const [isVideoPlaying, setIsVideoPlaying] = useState<{ [key: number]: boolean }>({});
+  const videoRefs = useRef<{ [key: number]: HTMLVideoElement | null }>({});
+  const cardRef = useRef<HTMLDivElement>(null);
 
   const handleLikeClick = () => {
     onLikeToggle(post.id, !post.user_liked);
@@ -51,7 +54,8 @@ export const PostCard = ({ post, onLikeToggle }: PostCardProps) => {
     setSelectedMedia({ url, type, index });
   };
 
-  const handleDownload = (url: string, index: number) => {
+  const handleDownload = (url: string, index: number, e: React.MouseEvent) => {
+    e.stopPropagation();
     const link = document.createElement('a');
     link.href = url;
     link.download = `media-${post.id}-${index}`;
@@ -60,10 +64,67 @@ export const PostCard = ({ post, onLikeToggle }: PostCardProps) => {
     document.body.removeChild(link);
   };
 
+  const toggleVideoPlay = (index: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const video = videoRefs.current[index];
+    if (video) {
+      if (video.paused) {
+        video.play();
+        setIsVideoPlaying(prev => ({ ...prev, [index]: true }));
+      } else {
+        video.pause();
+        setIsVideoPlaying(prev => ({ ...prev, [index]: false }));
+      }
+    }
+  };
+
+  // Auto-play videos when in view
+  useEffect(() => {
+    if (!post.media_urls) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            // Auto-play all videos in the post
+            post.media_urls?.forEach((_, index) => {
+              if (post.media_types?.[index] === 'video') {
+                const video = videoRefs.current[index];
+                if (video && video.paused) {
+                  video.play().catch(() => {
+                    // Handle autoplay restrictions
+                  });
+                  setIsVideoPlaying(prev => ({ ...prev, [index]: true }));
+                }
+              }
+            });
+          } else {
+            // Pause all videos when out of view
+            post.media_urls?.forEach((_, index) => {
+              if (post.media_types?.[index] === 'video') {
+                const video = videoRefs.current[index];
+                if (video && !video.paused) {
+                  video.pause();
+                  setIsVideoPlaying(prev => ({ ...prev, [index]: false }));
+                }
+              }
+            });
+          }
+        });
+      },
+      { threshold: 0.5 }
+    );
+
+    if (cardRef.current) {
+      observer.observe(cardRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [post.media_urls, post.media_types]);
+
   const renderContent = () => {
     if (!post.content) return null;
     
-    // Check if content contains HTML formatting
     if (post.content.includes('<span')) {
       return (
         <div 
@@ -89,20 +150,36 @@ export const PostCard = ({ post, onLikeToggle }: PostCardProps) => {
               {mediaType === 'video' ? (
                 <div className="relative">
                   <video
+                    ref={(el) => { videoRefs.current[index] = el; }}
                     src={url}
                     className="w-full rounded-lg max-h-96 object-cover cursor-pointer"
                     onClick={() => handleMediaClick(url, mediaType, index)}
+                    muted
+                    loop
+                    playsInline
+                    onPlay={() => setIsVideoPlaying(prev => ({ ...prev, [index]: true }))}
+                    onPause={() => setIsVideoPlaying(prev => ({ ...prev, [index]: false }))}
                   />
+                  
+                  {/* Play/Pause overlay */}
                   <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 rounded-lg flex items-center justify-center">
                     <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={(e) => toggleVideoPlay(index, e)}
+                        className="bg-white/90 text-black hover:bg-white"
+                      >
+                        {isVideoPlaying[index] ? 
+                          <Pause className="h-4 w-4" /> : 
+                          <Play className="h-4 w-4" />
+                        }
+                      </Button>
                       {post.allow_download && (
                         <Button
                           variant="secondary"
                           size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDownload(url, index);
-                          }}
+                          onClick={(e) => handleDownload(url, index, e)}
                           className="bg-white/90 text-black hover:bg-white"
                         >
                           <Download className="h-4 w-4" />
@@ -125,10 +202,7 @@ export const PostCard = ({ post, onLikeToggle }: PostCardProps) => {
                         <Button
                           variant="secondary"
                           size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDownload(url, index);
-                          }}
+                          onClick={(e) => handleDownload(url, index, e)}
                           className="bg-white/90 text-black hover:bg-white"
                         >
                           <Download className="h-4 w-4" />
@@ -147,7 +221,7 @@ export const PostCard = ({ post, onLikeToggle }: PostCardProps) => {
 
   return (
     <>
-      <Card>
+      <Card ref={cardRef}>
         <CardHeader className="pb-3">
           <div className="flex items-center gap-3">
             <Avatar className="h-10 w-10">

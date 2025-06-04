@@ -11,22 +11,82 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { uploadFile, getFileType } from '@/lib/fileUpload';
-import { Image, Video, X, Type, Heading1, Heading2 } from 'lucide-react';
+import { Image, Video, X, Type, Heading1, Heading2, Heading3, Bold, Italic } from 'lucide-react';
 
 interface CreatePostDialogProps {
   children: React.ReactNode;
   onPostCreated: () => void;
 }
 
+interface TextBlock {
+  id: string;
+  content: string;
+  style: string;
+  color: string;
+  fontSize: string;
+  fontWeight: string;
+  fontStyle: string;
+}
+
 export const CreatePostDialog = ({ children, onPostCreated }: CreatePostDialogProps) => {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
-  const [content, setContent] = useState('');
-  const [textStyle, setTextStyle] = useState('normal');
-  const [textColor, setTextColor] = useState('#000000');
+  const [textBlocks, setTextBlocks] = useState<TextBlock[]>([
+    { 
+      id: '1', 
+      content: '', 
+      style: 'normal', 
+      color: '#000000', 
+      fontSize: '14px',
+      fontWeight: 'normal',
+      fontStyle: 'normal'
+    }
+  ]);
   const [files, setFiles] = useState<File[]>([]);
   const [allowDownload, setAllowDownload] = useState(true);
   const [uploading, setUploading] = useState(false);
+
+  const addTextBlock = () => {
+    const newBlock: TextBlock = {
+      id: Date.now().toString(),
+      content: '',
+      style: 'normal',
+      color: '#000000',
+      fontSize: '14px',
+      fontWeight: 'normal',
+      fontStyle: 'normal'
+    };
+    setTextBlocks([...textBlocks, newBlock]);
+  };
+
+  const updateTextBlock = (id: string, field: keyof TextBlock, value: string) => {
+    setTextBlocks(textBlocks.map(block => 
+      block.id === id ? { ...block, [field]: value } : block
+    ));
+  };
+
+  const removeTextBlock = (id: string) => {
+    if (textBlocks.length > 1) {
+      setTextBlocks(textBlocks.filter(block => block.id !== id));
+    }
+  };
+
+  const getStyleFromSelection = (style: string) => {
+    switch (style) {
+      case 'heading1':
+        return { fontSize: '32px', fontWeight: 'bold' };
+      case 'heading2':
+        return { fontSize: '24px', fontWeight: 'bold' };
+      case 'heading3':
+        return { fontSize: '20px', fontWeight: 'bold' };
+      case 'large':
+        return { fontSize: '18px', fontWeight: 'normal' };
+      case 'small':
+        return { fontSize: '12px', fontWeight: 'normal' };
+      default:
+        return { fontSize: '14px', fontWeight: 'normal' };
+    }
+  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []);
@@ -39,35 +99,28 @@ export const CreatePostDialog = ({ children, onPostCreated }: CreatePostDialogPr
       toast.error('Only images and videos are allowed');
     }
     
-    setFiles(prev => [...prev, ...validFiles].slice(0, 5)); // Max 5 files
+    setFiles(prev => [...prev, ...validFiles].slice(0, 5));
   };
 
   const removeFile = (index: number) => {
     setFiles(files.filter((_, i) => i !== index));
   };
 
-  const formatContent = (text: string, style: string, color: string) => {
-    if (!text.trim()) return null;
-    
-    const stylePrefix = style === 'heading1' ? '# ' : style === 'heading2' ? '## ' : '';
-    return `<span style="color: ${color}; ${getStyleCss(style)}">${stylePrefix}${text}</span>`;
-  };
+  const formatContent = () => {
+    const validBlocks = textBlocks.filter(block => block.content.trim());
+    if (validBlocks.length === 0) return null;
 
-  const getStyleCss = (style: string) => {
-    switch (style) {
-      case 'heading1':
-        return 'font-size: 24px; font-weight: bold;';
-      case 'heading2':
-        return 'font-size: 20px; font-weight: bold;';
-      default:
-        return 'font-size: 14px;';
-    }
+    return validBlocks.map(block => {
+      const style = getStyleFromSelection(block.style);
+      return `<span style="color: ${block.color}; font-size: ${style.fontSize}; font-weight: ${block.fontWeight}; font-style: ${block.fontStyle}; display: block; margin-bottom: 8px;">${block.content}</span>`;
+    }).join('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!user || (!content.trim() && files.length === 0)) {
+    const hasContent = textBlocks.some(block => block.content.trim());
+    if (!user || (!hasContent && files.length === 0)) {
       toast.error('Please add some content or media');
       return;
     }
@@ -78,7 +131,6 @@ export const CreatePostDialog = ({ children, onPostCreated }: CreatePostDialogPr
       let mediaUrls: string[] = [];
       let mediaTypes: string[] = [];
 
-      // Upload files if any
       if (files.length > 0) {
         for (const file of files) {
           const url = await uploadFile(file, 'posts', 'post-media');
@@ -89,9 +141,8 @@ export const CreatePostDialog = ({ children, onPostCreated }: CreatePostDialogPr
         }
       }
 
-      const formattedContent = formatContent(content, textStyle, textColor);
+      const formattedContent = formatContent();
 
-      // Create post using direct supabase insert
       const { error } = await supabase
         .from('posts')
         .insert({
@@ -105,9 +156,15 @@ export const CreatePostDialog = ({ children, onPostCreated }: CreatePostDialogPr
       if (error) throw error;
 
       toast.success('Post created successfully!');
-      setContent('');
-      setTextStyle('normal');
-      setTextColor('#000000');
+      setTextBlocks([{ 
+        id: '1', 
+        content: '', 
+        style: 'normal', 
+        color: '#000000', 
+        fontSize: '14px',
+        fontWeight: 'normal',
+        fontStyle: 'normal'
+      }]);
       setFiles([]);
       setAllowDownload(true);
       setOpen(false);
@@ -125,62 +182,143 @@ export const CreatePostDialog = ({ children, onPostCreated }: CreatePostDialogPr
       <DialogTrigger asChild>
         {children}
       </DialogTrigger>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create Post</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-3">
-            <Label>Text Style</Label>
-            <Select value={textStyle} onValueChange={setTextStyle}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select text style" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="normal">
-                  <div className="flex items-center gap-2">
-                    <Type className="h-4 w-4" />
-                    Normal Text
+          {/* Text blocks */}
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <Label className="text-lg font-semibold">Content</Label>
+              <Button type="button" onClick={addTextBlock} variant="outline" size="sm">
+                Add Text Block
+              </Button>
+            </div>
+            
+            {textBlocks.map((block, index) => (
+              <div key={block.id} className="border rounded-lg p-4 space-y-3">
+                <div className="flex justify-between items-center">
+                  <Label className="text-sm font-medium">Text Block {index + 1}</Label>
+                  {textBlocks.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeTextBlock(block.id)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Style Selection */}
+                  <div>
+                    <Label className="text-xs">Style</Label>
+                    <Select 
+                      value={block.style} 
+                      onValueChange={(value) => updateTextBlock(block.id, 'style', value)}
+                    >
+                      <SelectTrigger className="h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="normal">
+                          <div className="flex items-center gap-2">
+                            <Type className="h-3 w-3" />
+                            Normal
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="heading1">
+                          <div className="flex items-center gap-2">
+                            <Heading1 className="h-3 w-3" />
+                            Heading 1
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="heading2">
+                          <div className="flex items-center gap-2">
+                            <Heading2 className="h-3 w-3" />
+                            Heading 2
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="heading3">
+                          <div className="flex items-center gap-2">
+                            <Heading3 className="h-3 w-3" />
+                            Heading 3
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="large">Large Text</SelectItem>
+                        <SelectItem value="small">Small Text</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                </SelectItem>
-                <SelectItem value="heading1">
-                  <div className="flex items-center gap-2">
-                    <Heading1 className="h-4 w-4" />
-                    Heading 1
+
+                  {/* Color */}
+                  <div>
+                    <Label className="text-xs">Color</Label>
+                    <Input
+                      type="color"
+                      value={block.color}
+                      onChange={(e) => updateTextBlock(block.id, 'color', e.target.value)}
+                      className="h-8 w-full"
+                    />
                   </div>
-                </SelectItem>
-                <SelectItem value="heading2">
-                  <div className="flex items-center gap-2">
-                    <Heading2 className="h-4 w-4" />
-                    Heading 2
+
+                  {/* Font Weight */}
+                  <div>
+                    <Label className="text-xs">Weight</Label>
+                    <Select 
+                      value={block.fontWeight} 
+                      onValueChange={(value) => updateTextBlock(block.id, 'fontWeight', value)}
+                    >
+                      <SelectTrigger className="h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="normal">Normal</SelectItem>
+                        <SelectItem value="bold">Bold</SelectItem>
+                        <SelectItem value="lighter">Light</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
+
+                  {/* Font Style */}
+                  <div>
+                    <Label className="text-xs">Style</Label>
+                    <Select 
+                      value={block.fontStyle} 
+                      onValueChange={(value) => updateTextBlock(block.id, 'fontStyle', value)}
+                    >
+                      <SelectTrigger className="h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="normal">Normal</SelectItem>
+                        <SelectItem value="italic">Italic</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Text Input */}
+                <Textarea
+                  placeholder="Enter your text..."
+                  value={block.content}
+                  onChange={(e) => updateTextBlock(block.id, 'content', e.target.value)}
+                  className="min-h-[80px] resize-none"
+                  style={{ 
+                    color: block.color,
+                    fontSize: getStyleFromSelection(block.style).fontSize,
+                    fontWeight: block.fontWeight,
+                    fontStyle: block.fontStyle
+                  }}
+                />
+              </div>
+            ))}
           </div>
 
-          <div className="space-y-2">
-            <Label>Text Color</Label>
-            <Input
-              type="color"
-              value={textColor}
-              onChange={(e) => setTextColor(e.target.value)}
-              className="w-full h-10"
-            />
-          </div>
-
-          <Textarea
-            placeholder="What's on your mind?"
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            className="min-h-[100px] resize-none"
-            style={{ 
-              color: textColor,
-              fontSize: textStyle === 'heading1' ? '24px' : textStyle === 'heading2' ? '20px' : '14px',
-              fontWeight: textStyle.includes('heading') ? 'bold' : 'normal'
-            }}
-          />
-          
+          {/* File Upload */}
           <div>
             <Input
               type="file"
