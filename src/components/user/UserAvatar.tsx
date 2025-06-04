@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { OnlineStatus } from './OnlineStatus';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +13,7 @@ interface UserAvatarProps {
   showStatus?: boolean;
   size?: 'sm' | 'md' | 'lg';
   accountStatus?: 'normal' | 'admin' | 'verified';
+  clickable?: boolean;
 }
 
 export const UserAvatar: React.FC<UserAvatarProps> = ({ 
@@ -20,8 +22,11 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   name,
   showStatus = true,
   size = 'md',
-  accountStatus
+  accountStatus,
+  clickable = true
 }) => {
+  const navigate = useNavigate();
+  
   const getInitials = (fullName: string) => {
     return fullName
       .split(' ')
@@ -36,10 +41,19 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
     md: 'h-10 w-10',
     lg: 'h-14 w-14'
   };
+
+  const handleClick = () => {
+    if (clickable && name) {
+      navigate(`/~${name}`);
+    }
+  };
   
   return (
     <div className="relative">
-      <Avatar className={sizeClasses[size]}>
+      <Avatar 
+        className={`${sizeClasses[size]} ${clickable ? 'cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all' : ''}`}
+        onClick={handleClick}
+      >
         {profilePic ? (
           <AvatarImage src={profilePic} alt={name || 'User'} />
         ) : (

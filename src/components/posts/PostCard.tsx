@@ -2,11 +2,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Heart, MessageSquare, Play, Pause } from 'lucide-react';
 import { Post } from '@/pages/Posts';
 import { CommentsDialog } from './CommentsDialog';
 import { MediaModal } from './MediaModal';
+import { UserAvatar } from '@/components/user/UserAvatar';
+import { ClickableUsername } from '@/components/user/ClickableUsername';
 
 interface PostCardProps {
   post: Post;
@@ -204,15 +205,18 @@ export const PostCard = ({ post, onLikeToggle, soundEnabled }: PostCardProps) =>
       <Card ref={cardRef}>
         <CardHeader className="pb-3">
           <div className="flex items-center gap-3">
-            <Avatar className="h-10 w-10">
-              {post.user_profile_pic ? (
-                <AvatarImage src={post.user_profile_pic} alt={post.user_name} />
-              ) : (
-                <AvatarFallback>{post.user_name[0]?.toUpperCase()}</AvatarFallback>
-              )}
-            </Avatar>
+            <UserAvatar
+              userId={post.user_id}
+              profilePic={post.user_profile_pic}
+              name={post.user_name}
+              size="md"
+              showStatus={false}
+            />
             <div>
-              <p className="font-semibold text-sm">{post.user_name}</p>
+              <ClickableUsername 
+                username={post.user_name} 
+                className="font-semibold text-sm"
+              />
               <p className="text-xs text-gray-500">{formatDate(post.created_at)}</p>
             </div>
           </div>
