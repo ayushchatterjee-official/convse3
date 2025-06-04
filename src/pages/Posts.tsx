@@ -21,6 +21,7 @@ export interface Post {
   user_name: string;
   user_profile_pic?: string;
   user_liked?: boolean;
+  allow_download?: boolean;
 }
 
 const Posts = () => {
@@ -41,7 +42,7 @@ const Posts = () => {
       // Fetch posts directly from the posts table
       const { data: postsData, error: postsError } = await supabase
         .from('posts')
-        .select('id, user_id, content, media_urls, media_types, likes_count, comments_count, created_at')
+        .select('id, user_id, content, media_urls, media_types, likes_count, comments_count, created_at, allow_download')
         .order('created_at', { ascending: false })
         .limit(20);
 
@@ -95,7 +96,8 @@ const Posts = () => {
           created_at: post.created_at,
           user_name: profile?.name || 'Unknown User',
           user_profile_pic: profile?.profile_pic,
-          user_liked: likedPostsSet.has(post.id)
+          user_liked: likedPostsSet.has(post.id),
+          allow_download: post.allow_download !== false // Default to true if not specified
         };
       });
 

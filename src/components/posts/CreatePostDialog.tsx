@@ -4,11 +4,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { uploadFile, getFileType } from '@/lib/fileUpload';
-import { Image, Video, X } from 'lucide-react';
+import { Image, Video, X, Type, Heading1, Heading2 } from 'lucide-react';
 
 interface CreatePostDialogProps {
   children: React.ReactNode;
@@ -19,7 +22,10 @@ export const CreatePostDialog = ({ children, onPostCreated }: CreatePostDialogPr
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [content, setContent] = useState('');
+  const [textStyle, setTextStyle] = useState('normal');
+  const [textColor, setTextColor] = useState('#000000');
   const [files, setFiles] = useState<File[]>([]);
+  const [allowDownload, setAllowDownload] = useState(true);
   const [uploading, setUploading] = useState(false);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -38,6 +44,24 @@ export const CreatePostDialog = ({ children, onPostCreated }: CreatePostDialogPr
 
   const removeFile = (index: number) => {
     setFiles(files.filter((_, i) => i !== index));
+  };
+
+  const formatContent = (text: string, style: string, color: string) => {
+    if (!text.trim()) return null;
+    
+    const stylePrefix = style === 'heading1' ? '# ' : style === 'heading2' ? '## ' : '';
+    return `<span style="color: ${color}; ${getStyleCss(style)}">${stylePrefix}${text}</span>`;
+  };
+
+  const getStyleCss = (style: string) => {
+    switch (style) {
+      case 'heading1':
+        return 'font-size: 24px; font-weight: bold;';
+      case 'heading2':
+        return 'font-size: 20px; font-weight: bold;';
+      default:
+        return 'font-size: 14px;';
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -65,21 +89,27 @@ export const CreatePostDialog = ({ children, onPostCreated }: CreatePostDialogPr
         }
       }
 
+      const formattedContent = formatContent(content, textStyle, textColor);
+
       // Create post using direct supabase insert
       const { error } = await supabase
         .from('posts')
         .insert({
           user_id: user.id,
-          content: content.trim() || null,
+          content: formattedContent,
           media_urls: mediaUrls.length > 0 ? mediaUrls : null,
-          media_types: mediaTypes.length > 0 ? mediaTypes : null
+          media_types: mediaTypes.length > 0 ? mediaTypes : null,
+          allow_download: allowDownload
         });
 
       if (error) throw error;
 
       toast.success('Post created successfully!');
       setContent('');
+      setTextStyle('normal');
+      setTextColor('#000000');
       setFiles([]);
+      setAllowDownload(true);
       setOpen(false);
       onPostCreated();
     } catch (error) {
@@ -95,16 +125,60 @@ export const CreatePostDialog = ({ children, onPostCreated }: CreatePostDialogPr
       <DialogTrigger asChild>
         {children}
       </DialogTrigger>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create Post</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-3">
+            <Label>Text Style</Label>
+            <Select value={textStyle} onValueChange={setTextStyle}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select text style" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="normal">
+                  <div className="flex items-center gap-2">
+                    <Type className="h-4 w-4" />
+                    Normal Text
+                  </div>
+                </SelectItem>
+                <SelectItem value="heading1">
+                  <div className="flex items-center gap-2">
+                    <Heading1 className="h-4 w-4" />
+                    Heading 1
+                  </div>
+                </SelectItem>
+                <SelectItem value="heading2">
+                  <div className="flex items-center gap-2">
+                    <Heading2 className="h-4 w-4" />
+                    Heading 2
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Text Color</Label>
+            <Input
+              type="color"
+              value={textColor}
+              onChange={(e) => setTextColor(e.target.value)}
+              className="w-full h-10"
+            />
+          </div>
+
           <Textarea
             placeholder="What's on your mind?"
             value={content}
             onChange={(e) => setContent(e.target.value)}
             className="min-h-[100px] resize-none"
+            style={{ 
+              color: textColor,
+              fontSize: textStyle === 'heading1' ? '24px' : textStyle === 'heading2' ? '20px' : '14px',
+              fontWeight: textStyle.includes('heading') ? 'bold' : 'normal'
+            }}
           />
           
           <div>
@@ -128,7 +202,19 @@ export const CreatePostDialog = ({ children, onPostCreated }: CreatePostDialogPr
 
           {files.length > 0 && (
             <div className="space-y-2">
-              <p className="text-sm font-medium">Selected Files:</p>
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">Selected Files:</p>
+                <div className="flex items-center space-x-2">
+                  <Label htmlFor="allow-download" className="text-sm">
+                    Allow Download
+                  </Label>
+                  <Switch
+                    id="allow-download"
+                    checked={allowDownload}
+                    onCheckedChange={setAllowDownload}
+                  />
+                </div>
+              </div>
               <div className="space-y-1">
                 {files.map((file, index) => (
                   <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
