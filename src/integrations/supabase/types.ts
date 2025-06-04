@@ -337,6 +337,7 @@ export type Database = {
       }
       posts: {
         Row: {
+          allow_download: boolean
           comments_count: number
           content: string | null
           created_at: string
@@ -348,6 +349,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          allow_download?: boolean
           comments_count?: number
           content?: string | null
           created_at?: string
@@ -359,6 +361,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          allow_download?: boolean
           comments_count?: number
           content?: string | null
           created_at?: string
