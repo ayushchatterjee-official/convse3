@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layouts/DashboardLayout';
 import { CreatePostDialog } from '@/components/posts/CreatePostDialog';
@@ -7,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { Plus } from 'lucide-react';
+import { Plus, Volume2, VolumeX } from 'lucide-react';
 
 export interface Post {
   id: string;
@@ -28,6 +27,7 @@ const Posts = () => {
   const { user } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+  const [soundEnabled, setSoundEnabled] = useState(true);
 
   useEffect(() => {
     fetchPosts();
@@ -180,6 +180,7 @@ const Posts = () => {
                 key={post.id}
                 post={post}
                 onLikeToggle={handleLikeToggle}
+                soundEnabled={soundEnabled}
               />
             ))
           ) : (
@@ -192,6 +193,20 @@ const Posts = () => {
           )}
         </div>
       </div>
+
+      {/* Sound Toggle Button */}
+      <Button
+        variant="outline"
+        size="icon"
+        className="fixed bottom-6 right-6 z-50 bg-white shadow-lg hover:shadow-xl"
+        onClick={() => setSoundEnabled(!soundEnabled)}
+      >
+        {soundEnabled ? (
+          <Volume2 className="h-5 w-5" />
+        ) : (
+          <VolumeX className="h-5 w-5" />
+        )}
+      </Button>
     </DashboardLayout>
   );
 };

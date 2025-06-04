@@ -2,15 +2,15 @@
 import React from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Download, X } from 'lucide-react';
+import { X } from 'lucide-react';
 
 interface MediaModalProps {
   isOpen: boolean;
   onClose: () => void;
   mediaUrl: string;
   mediaType: string;
-  allowDownload: boolean;
   fileName?: string;
+  soundEnabled: boolean;
 }
 
 export const MediaModal = ({ 
@@ -18,37 +18,15 @@ export const MediaModal = ({
   onClose, 
   mediaUrl, 
   mediaType, 
-  allowDownload,
-  fileName 
+  fileName,
+  soundEnabled 
 }: MediaModalProps) => {
-  const handleDownload = () => {
-    const link = document.createElement('a');
-    link.href = mediaUrl;
-    link.download = fileName || 'media-file';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] p-0 bg-black">
         <div className="relative flex flex-col h-full">
-          {/* Header with controls */}
-          <div className="absolute top-0 left-0 right-0 z-20 flex justify-between p-4 bg-gradient-to-b from-black/70 to-transparent">
-            <div className="flex gap-2">
-              {allowDownload && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleDownload}
-                  className="bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Download
-                </Button>
-              )}
-            </div>
+          {/* Header with close button */}
+          <div className="absolute top-0 right-0 z-20 p-4">
             <Button
               variant="ghost"
               size="sm"
@@ -66,6 +44,7 @@ export const MediaModal = ({
                 src={mediaUrl}
                 controls
                 autoPlay
+                muted={!soundEnabled}
                 className="max-w-full max-h-[80vh] object-contain rounded-lg"
               />
             ) : (

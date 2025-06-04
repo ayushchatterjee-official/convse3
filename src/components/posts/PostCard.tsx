@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Heart, MessageSquare, Download, Play, Pause } from 'lucide-react';
+import { Heart, MessageSquare, Play, Pause } from 'lucide-react';
 import { Post } from '@/pages/Posts';
 import { CommentsDialog } from './CommentsDialog';
 import { MediaModal } from './MediaModal';
@@ -11,9 +11,10 @@ import { MediaModal } from './MediaModal';
 interface PostCardProps {
   post: Post;
   onLikeToggle: (postId: string, liked: boolean) => void;
+  soundEnabled: boolean;
 }
 
-export const PostCard = ({ post, onLikeToggle }: PostCardProps) => {
+export const PostCard = ({ post, onLikeToggle, soundEnabled }: PostCardProps) => {
   const [showComments, setShowComments] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<{
     url: string;
@@ -54,16 +55,6 @@ export const PostCard = ({ post, onLikeToggle }: PostCardProps) => {
     setSelectedMedia({ url, type, index });
   };
 
-  const handleDownload = (url: string, index: number, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `media-${post.id}-${index}`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   const toggleVideoPlay = (index: number, e: React.MouseEvent) => {
     e.stopPropagation();
     const video = videoRefs.current[index];
@@ -78,7 +69,7 @@ export const PostCard = ({ post, onLikeToggle }: PostCardProps) => {
     }
   };
 
-  // Auto-play videos when in view
+  // Auto-play videos when in view and handle sound settings
   useEffect(() => {
     if (!post.media_urls) return;
 
@@ -91,6 +82,7 @@ export const PostCard = ({ post, onLikeToggle }: PostCardProps) => {
               if (post.media_types?.[index] === 'video') {
                 const video = videoRefs.current[index];
                 if (video && video.paused) {
+                  video.muted = !soundEnabled;
                   video.play().catch(() => {
                     // Handle autoplay restrictions
                   });
@@ -120,7 +112,19 @@ export const PostCard = ({ post, onLikeToggle }: PostCardProps) => {
     }
 
     return () => observer.disconnect();
-  }, [post.media_urls, post.media_types]);
+  }, [post.media_urls, post.media_types, soundEnabled]);
+
+  // Update video sound when soundEnabled changes
+  useEffect(() => {
+    post.media_urls?.forEach((_, index) => {
+      if (post.media_types?.[index] === 'video') {
+        const video = videoRefs.current[index];
+        if (video) {
+          video.muted = !soundEnabled;
+        }
+      }
+    });
+  }, [soundEnabled, post.media_urls, post.media_types]);
 
   const renderContent = () => {
     if (!post.content) return null;
@@ -154,7 +158,7 @@ export const PostCard = ({ post, onLikeToggle }: PostCardProps) => {
                     src={url}
                     className="w-full rounded-lg max-h-96 object-cover cursor-pointer"
                     onClick={() => handleMediaClick(url, mediaType, index)}
-                    muted
+                    muted={!soundEnabled}
                     loop
                     playsInline
                     onPlay={() => setIsVideoPlaying(prev => ({ ...prev, [index]: true }))}
@@ -163,7 +167,7 @@ export const PostCard = ({ post, onLikeToggle }: PostCardProps) => {
                   
                   {/* Play/Pause overlay */}
                   <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 rounded-lg flex items-center justify-center">
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-2">
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                       <Button
                         variant="secondary"
                         size="sm"
@@ -175,16 +179,6 @@ export const PostCard = ({ post, onLikeToggle }: PostCardProps) => {
                           <Play className="h-4 w-4" />
                         }
                       </Button>
-                      {post.allow_download && (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={(e) => handleDownload(url, index, e)}
-                          className="bg-white/90 text-black hover:bg-white"
-                        >
-                          <Download className="h-4 w-4" />
-                        </Button>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -196,20 +190,6 @@ export const PostCard = ({ post, onLikeToggle }: PostCardProps) => {
                     className="w-full rounded-lg max-h-96 object-cover cursor-pointer"
                     onClick={() => handleMediaClick(url, mediaType, index)}
                   />
-                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 rounded-lg flex items-center justify-center">
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-2">
-                      {post.allow_download && (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={(e) => handleDownload(url, index, e)}
-                          className="bg-white/90 text-black hover:bg-white"
-                        >
-                          <Download className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
                 </div>
               )}
             </div>
@@ -278,8 +258,8 @@ export const PostCard = ({ post, onLikeToggle }: PostCardProps) => {
           onClose={() => setSelectedMedia(null)}
           mediaUrl={selectedMedia.url}
           mediaType={selectedMedia.type}
-          allowDownload={post.allow_download || false}
           fileName={`media-${post.id}-${selectedMedia.index}`}
+          soundEnabled={soundEnabled}
         />
       )}
     </>
