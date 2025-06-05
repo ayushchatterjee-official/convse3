@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layouts/DashboardLayout';
@@ -292,6 +293,19 @@ const Notifications = () => {
                 >
                   <X className="h-4 w-4" />
                   Decline
+                </Button>
+              </div>
+            )}
+            
+            {(notification.type === 'message' || notification.type === 'voice_call') && (
+              <div className="pt-2">
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={() => handleNotificationClick(notification)}
+                  className="gap-1"
+                >
+                  Open Group
                 </Button>
               </div>
             )}

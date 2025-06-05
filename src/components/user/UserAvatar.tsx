@@ -14,6 +14,7 @@ interface UserAvatarProps {
   size?: 'sm' | 'md' | 'lg';
   accountStatus?: 'normal' | 'admin' | 'verified';
   clickable?: boolean;
+  onClick?: () => void;
 }
 
 export const UserAvatar: React.FC<UserAvatarProps> = ({ 
@@ -23,7 +24,8 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   showStatus = true,
   size = 'md',
   accountStatus,
-  clickable = true
+  clickable = true,
+  onClick
 }) => {
   const navigate = useNavigate();
   
@@ -43,7 +45,9 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   };
 
   const handleClick = () => {
-    if (clickable && name) {
+    if (onClick) {
+      onClick();
+    } else if (clickable && name) {
       navigate(`/?usr=${name}`);
     }
   };
@@ -51,7 +55,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   return (
     <div className="relative">
       <Avatar 
-        className={`${sizeClasses[size]} ${clickable ? 'cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all' : ''}`}
+        className={`${sizeClasses[size]} ${clickable ? 'cursor-pointer' : ''}`}
         onClick={handleClick}
       >
         {profilePic ? (

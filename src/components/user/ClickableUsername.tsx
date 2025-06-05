@@ -5,19 +5,24 @@ import { useNavigate } from 'react-router-dom';
 interface ClickableUsernameProps {
   username: string;
   className?: string;
+  onClick?: () => void;
 }
 
-export const ClickableUsername = ({ username, className = "" }: ClickableUsernameProps) => {
+export const ClickableUsername = ({ username, className = "", onClick }: ClickableUsernameProps) => {
   const navigate = useNavigate();
 
   const handleClick = () => {
-    navigate(`/?usr=${username}`);
+    if (onClick) {
+      onClick();
+    } else {
+      navigate(`/?usr=${username}`);
+    }
   };
 
   return (
     <span
       onClick={handleClick}
-      className={`cursor-pointer hover:text-blue-500 hover:underline transition-colors ${className}`}
+      className={`cursor-pointer ${className}`}
     >
       {username}
     </span>

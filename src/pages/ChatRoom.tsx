@@ -45,6 +45,7 @@ import { getFileType, uploadFile } from '@/lib/fileUpload';
 import { Textarea } from '@/components/ui/textarea';
 import { useGroupNavigation } from '@/hooks/useGroupNavigation';
 import { MentionModal } from '@/components/chat/MentionModal';
+import { UserProfileModal } from '@/components/user/UserProfileModal';
 
 interface MessageProfile {
   name: string;
@@ -111,6 +112,8 @@ const ChatRoom = () => {
   const [fileCaption, setFileCaption] = useState('');
   const [clearingChat, setClearingChat] = useState(false);
   const [showMentionModal, setShowMentionModal] = useState(false);
+  const [showUserProfileModal, setShowUserProfileModal] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -368,6 +371,10 @@ const ChatRoom = () => {
       }
       
       if (message.trim()) {
+        // Check for mentions before sending
+        const mentionRegex = /@(\w+)/g;
+        const mentions = message.match(mentionRegex);
+        
         // Send text message
         const { error } = await supabase
           .from('messages')
@@ -379,6 +386,30 @@ const ChatRoom = () => {
           });
         
         if (error) throw error;
+        
+        // Create notifications for mentioned users
+        if (mentions && mentions.length > 0) {
+          const uniqueMentions = [...new Set(mentions)];
+          
+          for (const mention of uniqueMentions) {
+            const username = mention.slice(1); // Remove @
+            
+            // Find the mentioned user in group members
+            const mentionedMember = members.find(m => m.profiles?.name === username);
+            
+            if (mentionedMember && mentionedMember.user_id !== user.id) {
+              await supabase
+                .from('notifications')
+                .insert({
+                  recipient_id: mentionedMember.user_id,
+                  sender_id: user.id,
+                  type: 'message',
+                  group_id: groupId,
+                  content: `${profile?.name || 'Someone'} mentioned you in ${group?.name || 'a group'}`
+                });
+            }
+          }
+        }
       }
       
       setMessage('');
@@ -707,6 +738,61 @@ const ChatRoom = () => {
     return null;
   };
   
+  const renderMessageContent = (msg: Message) => {
+    if (msg.content_type === 'image' && msg.file_url) {
+      return (
+        <div className="space-y-1">
+          <img src={msg.file_url} alt="Image" className="max-w-full rounded" />
+          {msg.content && <div dangerouslySetInnerHTML={{ __html: formatMentions(msg.content) }} />}
+        </div>
+      );
+    } else if (msg.content_type === 'video' && msg.file_url) {
+      return (
+        <div className="space-y-1">
+          <video controls className="max-w-full rounded">
+            <source src={msg.file_url} type="video/mp4" />
+            Your browser does not support the video tag.
+          </video>
+          {msg.content && <div dangerouslySetInnerHTML={{ __html: formatMentions(msg.content) }} />}
+        </div>
+      );
+    } else if (msg.content_type === 'file' && msg.file_url) {
+      return (
+        <div className="flex items-center">
+          <File className="mr-2 h-4 w-4" />
+          <a href={msg.file_url} target="_blank" rel="noreferrer" className="underline">
+            {msg.content || 'File'}
+          </a>
+        </div>
+      );
+    } else {
+      return <div dangerouslySetInnerHTML={{ __html: formatMentions(msg.content || '') }} />;
+    }
+  };
+
+  const formatMentions = (text: string) => {
+    return text.replace(/@(\w+)/g, '<span class="text-blue-500 font-medium cursor-pointer hover:underline" onclick="handleMentionClick(\'$1\')">@$1</span>');
+  };
+
+  // Add global function for mention clicks
+  useEffect(() => {
+    (window as any).handleMentionClick = (username: string) => {
+      const mentionedMember = members.find(m => m.profiles?.name === username);
+      if (mentionedMember) {
+        handleUserClick(mentionedMember.user_id);
+      }
+    };
+    
+    return () => {
+      delete (window as any).handleMentionClick;
+    };
+  }, [members]);
+
+  const handleUserClick = (userId: string) => {
+    setSelectedUserId(userId);
+    setShowUserProfileModal(true);
+  };
+
   return (
     <DashboardLayout>
       <div className="flex h-[calc(100vh-64px)]">
@@ -727,7 +813,10 @@ const ChatRoom = () => {
               {members.map((member) => (
                 <div key={member.user_id} className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    <Avatar className="h-8 w-8">
+                    <Avatar 
+                      className="h-8 w-8 cursor-pointer"
+                      onClick={() => handleUserClick(member.user_id)}
+                    >
                       {member.profiles?.profile_pic ? (
                         <AvatarImage src={member.profiles.profile_pic} alt={member.profiles?.name || 'User'} />
                       ) : (
@@ -738,7 +827,12 @@ const ChatRoom = () => {
                     </Avatar>
                     <div>
                       <div className="flex items-center gap-1">
-                        <span className="text-sm">{member.profiles?.name || 'Unknown User'}</span>
+                        <span 
+                          className="text-sm cursor-pointer"
+                          onClick={() => handleUserClick(member.user_id)}
+                        >
+                          {member.profiles?.name || 'Unknown User'}
+                        </span>
                         {member.is_admin && (
                           <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900 dark:text-blue-300 dark:border-blue-800">
                             Admin
@@ -894,7 +988,10 @@ const ChatRoom = () => {
                   ) : (
                     <div className="flex max-w-[75%]">
                       {msg.user_id !== user?.id && (
-                        <Avatar className="h-8 w-8 mr-2 mt-1">
+                        <Avatar 
+                          className="h-8 w-8 mr-2 mt-1 cursor-pointer"
+                          onClick={() => handleUserClick(msg.user_id)}
+                        >
                           {msg.profiles?.profile_pic ? (
                             <AvatarImage src={msg.profiles.profile_pic} alt={msg.profiles?.name || 'User'} />
                           ) : (
@@ -908,7 +1005,12 @@ const ChatRoom = () => {
                       <div>
                         <div className="flex items-end space-x-1">
                           {msg.user_id !== user?.id && (
-                            <span className="text-xs text-gray-500 dark:text-gray-400 mb-1">{msg.profiles?.name || 'Unknown User'}</span>
+                            <span 
+                              className="text-xs text-gray-500 dark:text-gray-400 mb-1 cursor-pointer"
+                              onClick={() => handleUserClick(msg.user_id)}
+                            >
+                              {msg.profiles?.name || 'Unknown User'}
+                            </span>
                           )}
                         </div>
                         
@@ -926,7 +1028,7 @@ const ChatRoom = () => {
                                 : `${msg.profiles?.name || 'User'} deleted this message`
                               }
                             </span>
-                          ) : renderFilePreview(msg)}
+                          ) : renderMessageContent(msg)}
                           
                           <div className="text-xs mt-1 text-right">
                             {formatTimestamp(msg.created_at)}
@@ -1051,6 +1153,13 @@ const ChatRoom = () => {
         onClose={() => setShowMentionModal(false)}
         onSelectUser={handleMentionSelect}
         groupId={groupId || ''}
+      />
+
+      {/* User Profile Modal */}
+      <UserProfileModal
+        isOpen={showUserProfileModal}
+        onClose={() => setShowUserProfileModal(false)}
+        userId={selectedUserId}
       />
 
       {/* Ban Member Dialog */}
