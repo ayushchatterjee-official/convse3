@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layouts/DashboardLayout';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -22,7 +22,8 @@ interface UserProfile {
 }
 
 const UserProfile = () => {
-  const { username } = useParams();
+  const [searchParams] = useSearchParams();
+  const username = searchParams.get('usr');
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -50,7 +51,13 @@ const UserProfile = () => {
         return;
       }
 
-      setProfile(profileData);
+      // Type cast the account_status to ensure type safety
+      const typedProfile: UserProfile = {
+        ...profileData,
+        account_status: profileData.account_status as 'normal' | 'admin' | 'verified'
+      };
+
+      setProfile(typedProfile);
     } catch (error) {
       console.error('Error:', error);
       toast.error('Failed to load user profile');

@@ -54,7 +54,6 @@ const App = () => {
                   <Route path="/explore" element={<ExploreGroups />} />
                   <Route path="/admin" element={<Admin />} />
                   <Route path="/notifications" element={<Notifications />} />
-                  <Route path="/~:username" element={<UserProfile />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </TooltipProvider>

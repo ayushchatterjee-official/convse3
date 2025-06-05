@@ -11,7 +11,7 @@ export const ClickableUsername = ({ username, className = "" }: ClickableUsernam
   const navigate = useNavigate();
 
   const handleClick = () => {
-    navigate(`/~${username}`);
+    navigate(`/?usr=${username}`);
   };
 
   return (

@@ -44,7 +44,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
 
   const handleClick = () => {
     if (clickable && name) {
-      navigate(`/~${name}`);
+      navigate(`/?usr=${name}`);
     }
   };
   
