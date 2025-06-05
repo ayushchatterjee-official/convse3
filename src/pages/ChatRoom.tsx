@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -45,6 +44,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getFileType, uploadFile } from '@/lib/fileUpload';
 import { Textarea } from '@/components/ui/textarea';
 import { useGroupNavigation } from '@/hooks/useGroupNavigation';
+import { MentionModal } from '@/components/chat/MentionModal';
 
 interface MessageProfile {
   name: string;
@@ -110,6 +110,7 @@ const ChatRoom = () => {
   const [showFilePreview, setShowFilePreview] = useState(false);
   const [fileCaption, setFileCaption] = useState('');
   const [clearingChat, setClearingChat] = useState(false);
+  const [showMentionModal, setShowMentionModal] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -385,6 +386,23 @@ const ChatRoom = () => {
       console.error('Error sending message:', error);
       toast.error('Failed to send message');
     }
+  };
+
+  const handleMessageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setMessage(value);
+    
+    // Check if user just typed @ and show mention modal
+    if (value.endsWith('@')) {
+      setShowMentionModal(true);
+    }
+  };
+
+  const handleMentionSelect = (user: { id: string; name: string; profile_pic?: string }) => {
+    // Replace the @ with @username
+    const newMessage = message.slice(0, -1) + `@${user.name} `;
+    setMessage(newMessage);
+    setShowMentionModal(false);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'video' | 'file') => {
@@ -1009,9 +1027,9 @@ const ChatRoom = () => {
 
               <Input
                 type="text"
-                placeholder="Type a message..."
+                placeholder="Type a message... (use @ to mention users)"
                 value={message}
-                onChange={(e) => setMessage(e.target.value)}
+                onChange={handleMessageChange}
                 className="flex-1"
               />
               <Button 
@@ -1026,6 +1044,14 @@ const ChatRoom = () => {
           </div>
         </div>
       </div>
+
+      {/* Mention Modal */}
+      <MentionModal
+        isOpen={showMentionModal}
+        onClose={() => setShowMentionModal(false)}
+        onSelectUser={handleMentionSelect}
+        groupId={groupId || ''}
+      />
 
       {/* Ban Member Dialog */}
       <Dialog open={showBanDialog} onOpenChange={setShowBanDialog}>
