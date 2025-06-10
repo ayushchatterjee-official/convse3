@@ -16,7 +16,7 @@ import { format } from 'date-fns';
 
 interface CommunityMessage {
   id: string;
-  type: 'public' | 'admin';
+  type: string;
   user_id: string;
   message: string | null;
   media_url: string | null;
@@ -26,7 +26,7 @@ interface CommunityMessage {
     name: string;
     profile_pic: string | null;
     account_status: string;
-  };
+  } | null;
 }
 
 const Community = () => {
@@ -53,8 +53,14 @@ const Community = () => {
       const { data: publicData, error: publicError } = await supabase
         .from('community_chats')
         .select(`
-          *,
-          profiles:user_id (
+          id,
+          type,
+          user_id,
+          message,
+          media_url,
+          media_type,
+          created_at,
+          profiles!community_chats_user_id_fkey (
             name,
             profile_pic,
             account_status
@@ -63,16 +69,34 @@ const Community = () => {
         .eq('type', 'public')
         .order('created_at', { ascending: true });
 
-      if (publicError) throw publicError;
-      setPublicMessages(publicData || []);
+      if (publicError) {
+        console.error('Public messages error:', publicError);
+        // Fallback query without profiles join
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('community_chats')
+          .select('*')
+          .eq('type', 'public')
+          .order('created_at', { ascending: true });
+        
+        if (fallbackError) throw fallbackError;
+        setPublicMessages(fallbackData || []);
+      } else {
+        setPublicMessages(publicData || []);
+      }
 
       // Fetch admin messages if user is admin or has sent admin messages
       if (isAdmin || user) {
         const { data: adminData, error: adminError } = await supabase
           .from('community_chats')
           .select(`
-            *,
-            profiles:user_id (
+            id,
+            type,
+            user_id,
+            message,
+            media_url,
+            media_type,
+            created_at,
+            profiles!community_chats_user_id_fkey (
               name,
               profile_pic,
               account_status
@@ -81,8 +105,20 @@ const Community = () => {
           .eq('type', 'admin')
           .order('created_at', { ascending: true });
 
-        if (adminError) throw adminError;
-        setAdminMessages(adminData || []);
+        if (adminError) {
+          console.error('Admin messages error:', adminError);
+          // Fallback query without profiles join
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from('community_chats')
+            .select('*')
+            .eq('type', 'admin')
+            .order('created_at', { ascending: true });
+          
+          if (fallbackError) throw fallbackError;
+          setAdminMessages(fallbackData || []);
+        } else {
+          setAdminMessages(adminData || []);
+        }
       }
     } catch (error) {
       console.error('Error fetching messages:', error);
