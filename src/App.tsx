@@ -24,6 +24,7 @@ import GroupVoiceCall from "./pages/GroupVoiceCall";
 import Notifications from "./pages/Notifications";
 import Posts from "./pages/Posts";
 import UserProfile from "./pages/UserProfile";
+import Community from "./pages/Community";
 
 const queryClient = new QueryClient();
 
@@ -47,6 +48,7 @@ const App = () => {
                   <Route path="/auth" element={<Auth />} />
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/posts" element={<Posts />} />
+                  <Route path="/community" element={<Community />} />
                   <Route path="/chat/:groupId" element={<ChatRoom />} />
                   <Route path="/voice-call/:groupId" element={<GroupVoiceCall />} />
                   <Route path="/profile" element={<Profile />} />

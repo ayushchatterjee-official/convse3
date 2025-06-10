@@ -1,3 +1,4 @@
+
 import React, { useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,13 +9,15 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { Sidebar, SidebarProvider, SidebarContent } from '@/components/ui/sidebar';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { NotificationDropdown } from '@/components/notification/NotificationDropdown';
-import { User, Home, Settings, Search, LogOut, ShieldCheck, Menu, MessageSquare, Bell } from 'lucide-react';
+import { User, Home, Settings, Search, LogOut, ShieldCheck, Menu, MessageSquare, Bell, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+
 interface DashboardLayoutProps {
   children: React.ReactNode;
   noPadding?: boolean;
 }
+
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   children,
   noPadding = false
@@ -31,6 +34,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const location = useLocation();
+
   const handleSignOut = async () => {
     try {
       await signOut();
@@ -40,9 +44,11 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       toast.error('Failed to sign out');
     }
   };
+
   const isActiveRoute = (path: string) => {
     return location.pathname === path || location.pathname.startsWith(`${path}/`);
   };
+
   const navItems = [{
     label: 'Dashboard',
     href: '/dashboard',
@@ -51,6 +57,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     label: 'Posts',
     href: '/posts',
     icon: <MessageSquare className="mr-2 h-4 w-4" />
+  }, {
+    label: 'Community',
+    href: '/community',
+    icon: <Users className="mr-2 h-4 w-4" />
   }, {
     label: 'Explore',
     href: '/explore',
@@ -68,6 +78,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     href: '/settings',
     icon: <Settings className="mr-2 h-4 w-4" />
   }];
+
   if (isAdmin) {
     navItems.push({
       label: 'Admin Panel',
@@ -75,6 +86,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       icon: <ShieldCheck className="mr-2 h-4 w-4" />
     });
   }
+
   const navigationLinks = <div className="space-y-1">
       {navItems.map(item => <Link key={item.href} to={item.href} className={`flex items-center px-3 py-2 text-sm rounded-md transition-colors
             ${isActiveRoute(item.href) ? 'bg-blue-500 text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
@@ -82,6 +94,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           {item.label}
         </Link>)}
     </div>;
+
   return <SidebarProvider>
       <div className="flex h-screen w-full bg-white dark:bg-gray-950">
         {/* Sidebar for desktop */}

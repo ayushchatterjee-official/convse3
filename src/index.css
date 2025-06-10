@@ -73,10 +73,124 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   }
 }
 
 /* Custom styles */
 .mirror {
   transform: scaleX(-1);
+}
+
+/* Enhanced dark mode styling */
+.dark .bg-white {
+  @apply bg-gray-900;
+}
+
+.dark .text-gray-900 {
+  @apply text-gray-100;
+}
+
+.dark .text-gray-800 {
+  @apply text-gray-200;
+}
+
+.dark .text-gray-700 {
+  @apply text-gray-300;
+}
+
+.dark .text-gray-600 {
+  @apply text-gray-400;
+}
+
+.dark .border-gray-200 {
+  @apply border-gray-700;
+}
+
+.dark .border-gray-300 {
+  @apply border-gray-600;
+}
+
+/* Improved scrollbar styling for dark mode */
+.dark ::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  @apply bg-gray-800;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  @apply bg-gray-600 rounded-md;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-500;
+}
+
+/* Better focus states in dark mode */
+.dark .focus-visible\:ring-2:focus-visible {
+  @apply ring-gray-400;
+}
+
+/* Enhanced button styles for dark mode */
+.dark .hover\:bg-gray-100:hover {
+  @apply bg-gray-800;
+}
+
+.dark .hover\:bg-gray-50:hover {
+  @apply bg-gray-800/50;
+}
+
+/* Better contrast for badges in dark mode */
+.dark .bg-gray-100 {
+  @apply bg-gray-800;
+}
+
+.dark .bg-gray-200 {
+  @apply bg-gray-700;
+}
+
+/* Improved dropdown and popover styling */
+.dark [data-radix-popper-content-wrapper] {
+  @apply bg-gray-900 border-gray-700;
+}
+
+/* Better code block styling */
+.dark pre {
+  @apply bg-gray-800 border-gray-700;
+}
+
+.dark code {
+  @apply bg-gray-800 text-gray-200;
+}
+
+/* Enhanced table styling for dark mode */
+.dark table {
+  @apply border-gray-700;
+}
+
+.dark th {
+  @apply bg-gray-800 border-gray-700;
+}
+
+.dark td {
+  @apply border-gray-700;
+}
+
+/* Better form input styling */
+.dark input[type="text"],
+.dark input[type="email"],
+.dark input[type="password"],
+.dark textarea,
+.dark select {
+  @apply bg-gray-800 border-gray-600 text-gray-100 placeholder-gray-400;
+}
+
+.dark input[type="text"]:focus,
+.dark input[type="email"]:focus,
+.dark input[type="password"]:focus,
+.dark textarea:focus,
+.dark select:focus {
+  @apply border-gray-500 ring-gray-500;
 }
