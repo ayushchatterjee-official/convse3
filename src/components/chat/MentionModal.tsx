@@ -23,39 +23,67 @@ export const MentionModal = ({ isOpen, onClose, onSelectUser, groupId }: Mention
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (isOpen && groupId) {
-      fetchGroupMembers();
+    if (isOpen) {
+      fetchUsers();
     }
   }, [isOpen, groupId]);
 
-  const fetchGroupMembers = async () => {
+  const fetchUsers = async () => {
     try {
       setLoading(true);
       
-      const { data: membersData, error } = await supabase
-        .from('group_members')
-        .select(`
-          user_id,
-          profiles!inner (
-            id,
-            name,
-            profile_pic
-          )
-        `)
-        .eq('group_id', groupId)
-        .eq('banned', false);
+      if (groupId === 'community') {
+        // For community chat, get all users who have sent messages in community_chats
+        const { data: communityUsers, error } = await supabase
+          .from('community_chats')
+          .select('user_id')
+          .order('created_at', { ascending: false });
 
-      if (error) throw error;
+        if (error) throw error;
 
-      const formattedMembers = membersData?.map(member => ({
-        id: member.profiles.id,
-        name: member.profiles.name,
-        profile_pic: member.profiles.profile_pic
-      })) || [];
+        const uniqueUserIds = [...new Set(communityUsers?.map(msg => msg.user_id) || [])];
+        
+        if (uniqueUserIds.length > 0) {
+          const { data: profilesData } = await supabase
+            .from('profiles')
+            .select('id, name, profile_pic')
+            .in('id', uniqueUserIds);
 
-      setMembers(formattedMembers);
+          const formattedMembers = profilesData?.map(profile => ({
+            id: profile.id,
+            name: profile.name,
+            profile_pic: profile.profile_pic
+          })) || [];
+
+          setMembers(formattedMembers);
+        }
+      } else {
+        // For regular groups, use the existing logic
+        const { data: membersData, error } = await supabase
+          .from('group_members')
+          .select(`
+            user_id,
+            profiles!inner (
+              id,
+              name,
+              profile_pic
+            )
+          `)
+          .eq('group_id', groupId)
+          .eq('banned', false);
+
+        if (error) throw error;
+
+        const formattedMembers = membersData?.map(member => ({
+          id: member.profiles.id,
+          name: member.profiles.name,
+          profile_pic: member.profiles.profile_pic
+        })) || [];
+
+        setMembers(formattedMembers);
+      }
     } catch (error) {
-      console.error('Error fetching group members:', error);
+      console.error('Error fetching users:', error);
     } finally {
       setLoading(false);
     }
@@ -70,12 +98,12 @@ export const MentionModal = ({ isOpen, onClose, onSelectUser, groupId }: Mention
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="p-0 max-w-md">
         <Command className="rounded-lg border shadow-md">
-          <CommandInput placeholder="Search members to mention..." />
+          <CommandInput placeholder="Search users to mention..." />
           <CommandList className="max-h-[300px]">
             <CommandEmpty>
-              {loading ? 'Loading members...' : 'No members found.'}
+              {loading ? 'Loading users...' : 'No users found.'}
             </CommandEmpty>
-            <CommandGroup heading="Group Members">
+            <CommandGroup heading={groupId === 'community' ? 'Community Users' : 'Group Members'}>
               {members.map((member) => (
                 <CommandItem
                   key={member.id}
