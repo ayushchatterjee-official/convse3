@@ -44,6 +44,8 @@ export const NotificationDropdown = () => {
     if (!user) return;
 
     fetchNotifications();
+    // Clean up old notifications on component mount
+    cleanupOldNotifications();
 
     const channel = supabase
       .channel('notifications')
@@ -61,6 +63,19 @@ export const NotificationDropdown = () => {
       supabase.removeChannel(channel);
     };
   }, [user]);
+
+  const cleanupOldNotifications = async () => {
+    try {
+      const { data, error } = await supabase.rpc('cleanup_old_notifications');
+      if (error) {
+        console.error('Error cleaning up old notifications:', error);
+      } else if (data > 0) {
+        console.log(`Automatically cleaned up ${data} old read notifications`);
+      }
+    } catch (error) {
+      console.error('Error in automatic notification cleanup:', error);
+    }
+  };
 
   const fetchNotifications = async () => {
     if (!user) return;
