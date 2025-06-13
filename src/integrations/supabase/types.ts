@@ -9,6 +9,77 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      admin_conversations: {
+        Row: {
+          admin_id: string
+          created_at: string
+          id: string
+          subject: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          admin_id: string
+          created_at?: string
+          id?: string
+          subject?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          admin_id?: string
+          created_at?: string
+          id?: string
+          subject?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      admin_private_messages: {
+        Row: {
+          conversation_id: string | null
+          created_at: string
+          id: string
+          media_type: string | null
+          media_url: string | null
+          mentions: string[] | null
+          message: string | null
+          recipient_id: string | null
+          sender_id: string
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          media_type?: string | null
+          media_url?: string | null
+          mentions?: string[] | null
+          message?: string | null
+          recipient_id?: string | null
+          sender_id: string
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          media_type?: string | null
+          media_url?: string | null
+          mentions?: string[] | null
+          message?: string | null
+          recipient_id?: string | null
+          sender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_private_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "admin_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       community_chats: {
         Row: {
           created_at: string

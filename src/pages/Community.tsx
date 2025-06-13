@@ -15,6 +15,8 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { MentionModal } from '@/components/chat/MentionModal';
 import { UserProfileModal } from '@/components/user/UserProfileModal';
+import { PrivateMessagesList } from '@/components/chat/PrivateMessagesList';
+import { uploadFile, getFileType } from '@/lib/fileUpload';
 
 interface CommunityMessage {
   id: string;
@@ -34,13 +36,13 @@ interface CommunityMessage {
 const Community = () => {
   const { user, profile, isAdmin } = useAuth();
   const [publicMessages, setPublicMessages] = useState<CommunityMessage[]>([]);
-  const [adminMessages, setAdminMessages] = useState<CommunityMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [activeTab, setActiveTab] = useState<'public' | 'admin'>('public');
   const [isLoading, setIsLoading] = useState(false);
   const [showMentionModal, setShowMentionModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -50,11 +52,10 @@ const Community = () => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [publicMessages, adminMessages]);
+  }, [publicMessages]);
 
-  const fetchMessages = async () => {
+  const fetchPublicMessages = async () => {
     try {
-      // Fetch public messages
       const { data: publicData, error: publicError } = await supabase
         .from('community_chats')
         .select('*')
@@ -65,7 +66,6 @@ const Community = () => {
         console.error('Public messages error:', publicError);
         setPublicMessages([]);
       } else if (publicData) {
-        // Fetch profiles for public messages
         const userIds = [...new Set(publicData.map(msg => msg.user_id))];
         const { data: profilesData } = await supabase
           .from('profiles')
@@ -78,41 +78,6 @@ const Community = () => {
         }));
         setPublicMessages(messagesWithProfiles);
       }
-
-      // Fetch admin messages - only show messages involving current user
-      if (user) {
-        let adminQuery = supabase
-          .from('community_chats')
-          .select('*')
-          .eq('type', 'admin')
-          .order('created_at', { ascending: true });
-
-        // If user is admin, show all admin messages
-        // If user is not admin, only show their own messages with admins
-        if (!isAdmin) {
-          adminQuery = adminQuery.eq('user_id', user.id);
-        }
-
-        const { data: adminData, error: adminError } = await adminQuery;
-
-        if (adminError) {
-          console.error('Admin messages error:', adminError);
-          setAdminMessages([]);
-        } else if (adminData) {
-          // Fetch profiles for admin messages
-          const userIds = [...new Set(adminData.map(msg => msg.user_id))];
-          const { data: profilesData } = await supabase
-            .from('profiles')
-            .select('id, name, profile_pic, account_status')
-            .in('id', userIds);
-
-          const messagesWithProfiles = adminData.map(msg => ({
-            ...msg,
-            user_profile: profilesData?.find(p => p.id === msg.user_id) || null
-          }));
-          setAdminMessages(messagesWithProfiles);
-        }
-      }
     } catch (error) {
       console.error('Error fetching messages:', error);
       toast.error('Failed to load messages');
@@ -120,9 +85,8 @@ const Community = () => {
   };
 
   useEffect(() => {
-    fetchMessages();
+    fetchPublicMessages();
 
-    // Subscribe to realtime updates
     const channel = supabase
       .channel('community-chat')
       .on(
@@ -133,7 +97,7 @@ const Community = () => {
           table: 'community_chats'
         },
         () => {
-          fetchMessages();
+          fetchPublicMessages();
         }
       )
       .subscribe();
@@ -141,22 +105,28 @@ const Community = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [isAdmin, user]);
+  }, []);
 
   const sendMessage = async () => {
     if (!newMessage.trim() || !user) return;
 
     setIsLoading(true);
     try {
-      const { error } = await supabase
-        .from('community_chats')
-        .insert({
-          type: activeTab,
-          user_id: user.id,
-          message: newMessage.trim()
-        });
+      if (activeTab === 'public') {
+        const { error } = await supabase
+          .from('community_chats')
+          .insert({
+            type: activeTab,
+            user_id: user.id,
+            message: newMessage.trim()
+          });
 
-      if (error) throw error;
+        if (error) throw error;
+      } else {
+        // For admin tab, create or find conversation and send private message
+        await sendPrivateMessage(newMessage.trim());
+      }
+      
       setNewMessage('');
       toast.success('Message sent!');
     } catch (error) {
@@ -167,26 +137,125 @@ const Community = () => {
     }
   };
 
+  const sendPrivateMessage = async (message: string) => {
+    if (!user) return;
+
+    try {
+      // Extract mentions from message and format names
+      const mentionRegex = /@([A-Za-z0-9\s\-_]+)/g;
+      const mentions: string[] = [];
+      let formattedMessage = message;
+
+      // Replace mentions with proper formatting
+      formattedMessage = message.replace(mentionRegex, (match, name) => {
+        const formattedName = name.trim().replace(/\s+/g, '-');
+        // Here you would normally resolve the name to user ID
+        // For now, we'll store the formatted name
+        mentions.push(formattedName);
+        return `@${formattedName}`;
+      });
+
+      let conversationId = null;
+
+      if (isAdmin) {
+        // Admin sending to mentioned users
+        const { error } = await supabase
+          .from('admin_private_messages')
+          .insert({
+            sender_id: user.id,
+            message: formattedMessage,
+            mentions: mentions.length > 0 ? mentions : null
+          });
+
+        if (error) throw error;
+      } else {
+        // Regular user sending to admin - create or find conversation
+        const { data: existingConversation } = await supabase
+          .from('admin_conversations')
+          .select('id')
+          .eq('user_id', user.id)
+          .single();
+
+        if (existingConversation) {
+          conversationId = existingConversation.id;
+        } else {
+          // Create new conversation - admin_id will be null for now
+          const { data: newConversation, error: convError } = await supabase
+            .from('admin_conversations')
+            .insert({
+              user_id: user.id,
+              admin_id: user.id, // Temporary, should be updated by admin
+              subject: 'User Query'
+            })
+            .select('id')
+            .single();
+
+          if (convError) throw convError;
+          conversationId = newConversation.id;
+        }
+
+        const { error } = await supabase
+          .from('admin_private_messages')
+          .insert({
+            conversation_id: conversationId,
+            sender_id: user.id,
+            message: formattedMessage
+          });
+
+        if (error) throw error;
+      }
+    } catch (error) {
+      console.error('Error sending private message:', error);
+      throw error;
+    }
+  };
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !user) return;
 
-    // Only allow images in public chat
-    if (activeTab === 'public' && !file.type.startsWith('image/')) {
-      toast.error('Only images are allowed in public chat');
-      return;
-    }
-
-    setIsLoading(true);
+    setIsUploading(true);
     try {
-      // Here you would upload to storage and get the URL
-      // For now, we'll just show a placeholder
-      toast.info('File upload feature coming soon');
+      const fileType = getFileType(file);
+      const folderPath = `${user.id}`;
+      
+      const fileUrl = await uploadFile(file, 'community-media', folderPath);
+      
+      if (fileUrl) {
+        if (activeTab === 'public') {
+          const { error } = await supabase
+            .from('community_chats')
+            .insert({
+              type: activeTab,
+              user_id: user.id,
+              media_url: fileUrl,
+              media_type: file.type
+            });
+
+          if (error) throw error;
+        } else {
+          // For admin tab, send as private message with media
+          const { error } = await supabase
+            .from('admin_private_messages')
+            .insert({
+              sender_id: user.id,
+              media_url: fileUrl,
+              media_type: file.type
+            });
+
+          if (error) throw error;
+        }
+        
+        toast.success('File uploaded successfully!');
+      }
     } catch (error) {
       console.error('Error uploading file:', error);
       toast.error('Failed to upload file');
     } finally {
-      setIsLoading(false);
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -195,7 +264,8 @@ const Community = () => {
   };
 
   const handleSelectUser = (selectedUser: { id: string; name: string }) => {
-    setNewMessage(prev => prev + `@${selectedUser.name} `);
+    const formattedName = selectedUser.name.replace(/\s+/g, '-');
+    setNewMessage(prev => prev + `@${formattedName} `);
   };
 
   const handleUsernameClick = (userId: string) => {
@@ -207,28 +277,23 @@ const Community = () => {
     const messageText = message.message || '';
     
     // Parse mentions in message
-    const mentionRegex = /@(\w+)/g;
+    const mentionRegex = /@([A-Za-z0-9\-_]+)/g;
     const parts = messageText.split(mentionRegex);
     
     const renderMessageContent = () => {
       return parts.map((part, index) => {
         if (index % 2 === 1) {
-          // This is a mention
+          // This is a mention - convert hyphens back to spaces for display
+          const displayName = part.replace(/-/g, ' ');
           return (
             <span
               key={index}
-              className="text-blue-500 cursor-pointer hover:underline"
+              className="text-blue-500 cursor-pointer hover:underline font-medium"
               onClick={() => {
-                // Find user by name for mention click
-                const mentionedUser = [...publicMessages, ...adminMessages]
-                  .find(msg => msg.user_profile?.name === part)?.user_profile;
-                if (mentionedUser) {
-                  // Would need user ID to show profile, simplified for now
-                  toast.info(`Mentioned: ${part}`);
-                }
+                toast.info(`Mentioned: ${displayName}`);
               }}
             >
-              @{part}
+              @{displayName}
             </span>
           );
         }
@@ -239,7 +304,7 @@ const Community = () => {
     return (
       <div key={message.id} className="flex gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-800/50">
         <Avatar 
-          className="h-8 w-8 cursor-pointer"
+          className="h-8 w-8 cursor-pointer flex-shrink-0"
           onClick={() => handleUsernameClick(message.user_id)}
         >
           <AvatarImage src={message.user_profile?.profile_pic || ''} />
@@ -248,7 +313,7 @@ const Community = () => {
           </AvatarFallback>
         </Avatar>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span 
               className="font-medium text-sm cursor-pointer hover:underline"
               onClick={() => handleUsernameClick(message.user_id)}
@@ -292,8 +357,6 @@ const Community = () => {
     );
   };
 
-  const currentMessages = activeTab === 'public' ? publicMessages : adminMessages;
-
   return (
     <DashboardLayout>
       <div className="space-y-6 h-full flex flex-col max-h-screen">
@@ -325,13 +388,23 @@ const Community = () => {
           <CardContent className="flex-1 flex flex-col p-0 min-h-0">
             <ScrollArea className="flex-1 px-4">
               <div className="space-y-1">
-                {currentMessages.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>No messages yet. Start the conversation!</p>
-                  </div>
+                {activeTab === 'public' ? (
+                  publicMessages.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>No messages yet. Start the conversation!</p>
+                    </div>
+                  ) : (
+                    publicMessages.map(renderMessage)
+                  )
                 ) : (
-                  currentMessages.map(renderMessage)
+                  user && (
+                    <PrivateMessagesList 
+                      userId={user.id} 
+                      isAdmin={isAdmin} 
+                      onUserProfileClick={handleUsernameClick}
+                    />
+                  )
                 )}
                 <div ref={messagesEndRef} />
               </div>
@@ -343,7 +416,7 @@ const Community = () => {
                   <Input
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder={`Type your message...`}
+                    placeholder={activeTab === 'public' ? 'Type your message...' : 'Send a private message to admin...'}
                     onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
                     disabled={isLoading}
                     className="break-words"
@@ -357,40 +430,38 @@ const Community = () => {
                   >
                     <AtSign className="h-4 w-4" />
                   </Button>
-                  {activeTab === 'public' && (
-                    <>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        onChange={handleFileUpload}
-                        className="hidden"
-                      />
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={isLoading}
-                      >
-                        <Image className="h-4 w-4" />
-                      </Button>
-                    </>
-                  )}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*,video/*,.pdf,.doc,.docx"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isLoading || isUploading}
+                    title="Upload file"
+                  >
+                    <Image className="h-4 w-4" />
+                  </Button>
                 </div>
-                <Button onClick={sendMessage} disabled={isLoading || !newMessage.trim()}>
+                <Button onClick={sendMessage} disabled={isLoading || !newMessage.trim() || isUploading}>
                   <Send className="h-4 w-4" />
                 </Button>
               </div>
-              {activeTab === 'public' && (
-                <p className="text-xs text-gray-500 mt-2">
-                  Public chat: Text messages and images only
+              <div className="flex justify-between mt-2">
+                <p className="text-xs text-gray-500">
+                  {activeTab === 'public' 
+                    ? 'Public chat: Messages visible to everyone'
+                    : 'Private chat: Only you and admins can see these messages'
+                  }
                 </p>
-              )}
-              {activeTab === 'admin' && (
-                <p className="text-xs text-gray-500 mt-2">
-                  Private chat with administrators - only you and admins can see these messages
-                </p>
-              )}
+                {isUploading && (
+                  <p className="text-xs text-blue-500">Uploading...</p>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -400,7 +471,7 @@ const Community = () => {
         isOpen={showMentionModal}
         onClose={() => setShowMentionModal(false)}
         onSelectUser={handleSelectUser}
-        groupId="community" // Using a special identifier for community chat
+        groupId="community"
       />
 
       <UserProfileModal
