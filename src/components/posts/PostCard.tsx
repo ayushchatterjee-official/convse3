@@ -1,9 +1,9 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Heart, MessageCircle, Download, MoreVertical, Trash2 } from 'lucide-react';
+import { Heart, MessageCircle, Download, MoreVertical, Trash2, FileText, CircleCheck } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,7 +13,6 @@ import {
   DropdownMenu, 
   DropdownMenuContent, 
   DropdownMenuItem, 
-  DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
 import { CommentsDialog } from './CommentsDialog';
@@ -30,18 +29,28 @@ interface Post {
   media_types: string[] | null;
   allow_download: boolean;
   user_name: string;
-  profile_pic: string | null;
-  account_status: string;
+  user_profile_pic?: string | null;
+  user_liked?: boolean;
+  account_status?: 'normal' | 'admin' | 'verified';
 }
 
 interface PostCardProps {
   post: Post;
   onUpdate?: (postId: string) => void;
   onDelete?: (postId: string) => void;
+  onLikeToggle?: (postId: string, liked: boolean) => void;
+  soundEnabled?: boolean;
 }
 
-export const PostCard: React.FC<PostCardProps> = ({ post, onUpdate, onDelete }) => {
+export const PostCard: React.FC<PostCardProps> = ({ 
+  post, 
+  onUpdate, 
+  onDelete, 
+  onLikeToggle,
+  soundEnabled = true 
+}) => {
   const [likes, setLikes] = useState(post.likes_count);
+  const [isLiked, setIsLiked] = useState(post.user_liked || false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [mediaModalOpen, setMediaModalOpen] = useState(false);
   const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
@@ -49,41 +58,34 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onUpdate, onDelete }) 
   const isOwnPost = user?.id === post.user_id;
 
   const handleLike = async () => {
-    try {
-      const { error } = await supabase.from('post_likes').insert({
-        post_id: post.id,
-        user_id: user?.id,
-      });
+    if (!user) return;
 
-      if (error) {
-        throw error;
+    try {
+      const newLikedState = !isLiked;
+      
+      if (newLikedState) {
+        const { error } = await supabase.from('post_likes').insert({
+          post_id: post.id,
+          user_id: user.id,
+        });
+        if (error) throw error;
+        setLikes(likes + 1);
+      } else {
+        const { error } = await supabase
+          .from('post_likes')
+          .delete()
+          .eq('post_id', post.id)
+          .eq('user_id', user.id);
+        if (error) throw error;
+        setLikes(likes - 1);
       }
 
-      setLikes(likes + 1);
+      setIsLiked(newLikedState);
+      onLikeToggle?.(post.id, newLikedState);
       onUpdate?.(post.id);
     } catch (error) {
-      console.error('Error liking post:', error);
-      toast.error('Failed to like post');
-    }
-  };
-
-  const handleUnlike = async () => {
-    try {
-      const { error } = await supabase
-        .from('post_likes')
-        .delete()
-        .eq('post_id', post.id)
-        .eq('user_id', user?.id);
-
-      if (error) {
-        throw error;
-      }
-
-      setLikes(likes - 1);
-      onUpdate?.(post.id);
-    } catch (error) {
-      console.error('Error unliking post:', error);
-      toast.error('Failed to unlike post');
+      console.error('Error toggling like:', error);
+      toast.error('Failed to update like');
     }
   };
 
@@ -134,16 +136,26 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onUpdate, onDelete }) 
           <div className="flex items-center gap-3">
             <UserAvatar 
               userId={post.user_id}
-              profilePic={post.profile_pic}
+              profilePic={post.user_profile_pic}
               name={post.user_name}
-              accountStatus={post.account_status}
+              accountStatus={post.account_status as 'normal' | 'admin' | 'verified' | undefined}
               size="md"
             />
-            <div>
-              <h3 className="font-semibold">{post.user_name}</h3>
-              <p className="text-sm text-muted-foreground">
-                {formatDate(post.created_at)}
-              </p>
+            <div className="flex items-center gap-2">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold">{post.user_name}</h3>
+                  {post.account_status === 'verified' && (
+                    <CircleCheck className="h-4 w-4 text-blue-500 fill-blue-100" />
+                  )}
+                  {post.account_status === 'admin' && (
+                    <Badge variant="admin" className="text-xs">Admin</Badge>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {formatDate(post.created_at)}
+                </p>
+              </div>
             </div>
           </div>
           
@@ -192,9 +204,12 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onUpdate, onDelete }) 
                       onClick={() => handleMediaClick(index)}
                     />
                   ) : (
-                    <div className="flex items-center justify-center h-48 bg-muted rounded-md">
-                      <FileText className="h-12 w-12 text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground">Unsupported Media</p>
+                    <div className="flex items-center justify-center h-48 bg-muted rounded-md cursor-pointer"
+                         onClick={() => handleMediaClick(index)}>
+                      <div className="text-center">
+                        <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
+                        <p className="text-sm text-muted-foreground">File</p>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -205,8 +220,13 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onUpdate, onDelete }) 
 
         <div className="flex justify-between items-center">
           <div className="flex gap-2">
-            <Button variant="ghost" size="sm" onClick={handleLike}>
-              <Heart className="h-4 w-4 mr-2" />
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={handleLike}
+              className={isLiked ? "text-red-500" : ""}
+            >
+              <Heart className={`h-4 w-4 mr-2 ${isLiked ? "fill-red-500" : ""}`} />
               {likes} Likes
             </Button>
             <Button variant="ghost" size="sm" onClick={() => setCommentsOpen(true)}>
@@ -226,15 +246,16 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onUpdate, onDelete }) 
       <CommentsDialog
         open={commentsOpen}
         onOpenChange={setCommentsOpen}
-        postId={post.id}
+        post={post}
       />
 
       <MediaModal
-        open={mediaModalOpen}
-        onOpenChange={setMediaModalOpen}
+        isOpen={mediaModalOpen}
+        onClose={() => setMediaModalOpen(false)}
         mediaUrls={post.media_urls || []}
         mediaTypes={post.media_types || []}
         startIndex={selectedMediaIndex}
+        allowDownload={post.allow_download}
       />
     </Card>
   );

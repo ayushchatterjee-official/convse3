@@ -1,18 +1,22 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Eye, Calendar, MapPin, User } from 'lucide-react';
 import { toast } from 'sonner';
-import { useAuth } from '@/contexts/AuthContext';
-import { Eye, RefreshCw, Calendar, User, Activity } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 
 interface AdminLog {
   id: string;
-  user_id: string;
+  user_id: string | null;
   action_type: string;
   action_details: any;
   ip_address: string | null;
@@ -24,29 +28,23 @@ interface AdminLog {
 interface UserDetails {
   id: string;
   name: string;
+  profile_pic?: string;
   account_status: string;
+  country?: string;
   date_joined: string;
   last_login: string;
-  country: string | null;
-  dob: string | null;
-  profile_pic: string | null;
-  banned: boolean | null;
+  dob?: string;
 }
 
 export const AdminLogs: React.FC = () => {
   const [logs, setLogs] = useState<AdminLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState<UserDetails | null>(null);
-  const [userDetailsLoading, setUserDetailsLoading] = useState(false);
-  const { isAdmin } = useAuth();
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   useEffect(() => {
-    if (isAdmin) {
-      fetchLogs();
-      // Set up automatic cleanup of old notifications
-      cleanupOldNotifications();
-    }
-  }, [isAdmin]);
+    fetchLogs();
+  }, []);
 
   const fetchLogs = async () => {
     try {
@@ -60,58 +58,54 @@ export const AdminLogs: React.FC = () => {
 
       if (logsError) throw logsError;
 
-      // Get unique user IDs to fetch user names
-      const userIds = [...new Set(logsData?.map(log => log.user_id).filter(Boolean))];
-      
-      let usersData = [];
-      if (userIds.length > 0) {
-        const { data: users, error: usersError } = await supabase
-          .from('profiles')
-          .select('id, name')
-          .in('id', userIds);
-        
-        if (usersError) {
-          console.error('Error fetching users:', usersError);
-        } else {
-          usersData = users || [];
-        }
+      if (!logsData || logsData.length === 0) {
+        setLogs([]);
+        return;
       }
 
-      // Create a map for quick lookup
-      const usersMap = new Map(usersData.map(u => [u.id, u.name]));
+      // Get user IDs that are not null
+      const userIds = logsData
+        .map(log => log.user_id)
+        .filter((id): id is string => id !== null);
 
-      // Add user names to logs
-      const logsWithUserNames = logsData?.map(log => ({
+      if (userIds.length === 0) {
+        setLogs(logsData as AdminLog[]);
+        return;
+      }
+
+      // Fetch user profiles
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, name')
+        .in('id', userIds);
+
+      if (profilesError) {
+        console.error('Error fetching profiles:', profilesError);
+      }
+
+      // Create lookup map
+      const profilesMap = new Map((profilesData || []).map(p => [p.id, p]));
+
+      // Format logs with user names
+      const formattedLogs: AdminLog[] = logsData.map(log => ({
         ...log,
-        user_name: usersMap.get(log.user_id) || 'Unknown User'
-      })) || [];
+        user_name: log.user_id ? profilesMap.get(log.user_id)?.name || 'Unknown User' : 'System',
+        ip_address: log.ip_address as string | null,
+        user_agent: log.user_agent as string | null,
+        user_id: log.user_id as string | null
+      }));
 
-      setLogs(logsWithUserNames);
+      setLogs(formattedLogs);
     } catch (error) {
-      console.error('Error fetching admin logs:', error);
-      toast.error('Failed to fetch admin logs');
+      console.error('Error fetching logs:', error);
+      toast.error('Failed to load admin logs');
     } finally {
       setLoading(false);
     }
   };
 
-  const cleanupOldNotifications = async () => {
-    try {
-      const { data, error } = await supabase.rpc('cleanup_old_notifications');
-      if (error) {
-        console.error('Error cleaning up notifications:', error);
-      } else if (data > 0) {
-        console.log(`Cleaned up ${data} old notifications`);
-      }
-    } catch (error) {
-      console.error('Error in notification cleanup:', error);
-    }
-  };
-
   const fetchUserDetails = async (userId: string) => {
     try {
-      setUserDetailsLoading(true);
-      
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -119,30 +113,29 @@ export const AdminLogs: React.FC = () => {
         .single();
 
       if (error) throw error;
-      
+
       setSelectedUser(data);
+      setDetailsOpen(true);
     } catch (error) {
       console.error('Error fetching user details:', error);
-      toast.error('Failed to fetch user details');
-    } finally {
-      setUserDetailsLoading(false);
+      toast.error('Failed to load user details');
     }
   };
 
   const getActionBadgeVariant = (actionType: string) => {
     switch (actionType) {
       case 'user_signup':
-        return 'default';
+        return 'success';
       case 'user_login':
-        return 'secondary';
+        return 'info';
       case 'user_delete_account':
         return 'destructive';
       case 'group_created':
-        return 'default';
+        return 'success';
       case 'group_deleted':
         return 'destructive';
       default:
-        return 'outline';
+        return 'secondary';
     }
   };
 
@@ -151,161 +144,149 @@ export const AdminLogs: React.FC = () => {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString();
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(new Date(dateString));
   };
 
-  if (!isAdmin) {
+  if (loading) {
     return (
-      <Card>
-        <CardContent className="p-6">
-          <p className="text-center text-muted-foreground">Access denied. Admin privileges required.</p>
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-center min-h-[200px]">
+        <div className="text-lg">Loading admin logs...</div>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <Activity className="h-5 w-5" />
-            Admin Activity Logs
-          </CardTitle>
-          <Button onClick={fetchLogs} disabled={loading} size="sm" variant="outline">
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {loading ? (
-          <div className="flex justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-          </div>
-        ) : (
-          <ScrollArea className="h-[600px]">
-            <div className="space-y-4">
-              {logs.map((log) => (
-                <div key={log.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold">Admin Activity Logs</h2>
+        <Button onClick={fetchLogs} variant="outline" size="sm">
+          Refresh
+        </Button>
+      </div>
+
+      <div className="space-y-3">
+        {logs.length > 0 ? (
+          logs.map((log) => (
+            <Card key={log.id} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
                       <Badge variant={getActionBadgeVariant(log.action_type)}>
                         {formatActionType(log.action_type)}
                       </Badge>
-                      <span className="font-medium">{log.user_name}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                        <Calendar className="h-3 w-3" />
+                      <span className="text-sm text-muted-foreground">
                         {formatDate(log.created_at)}
-                      </div>
-                      {log.user_id && (
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => fetchUserDetails(log.user_id)}
-                            >
-                              <Eye className="h-3 w-3 mr-1" />
-                              View Details
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-2xl">
-                            <DialogHeader>
-                              <DialogTitle className="flex items-center gap-2">
-                                <User className="h-5 w-5" />
-                                User Details
-                              </DialogTitle>
-                            </DialogHeader>
-                            {userDetailsLoading ? (
-                              <div className="flex justify-center py-8">
-                                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-                              </div>
-                            ) : selectedUser ? (
-                              <div className="space-y-4">
-                                <div className="grid grid-cols-2 gap-4">
-                                  <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Name</label>
-                                    <p className="font-medium">{selectedUser.name}</p>
-                                  </div>
-                                  <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Account Status</label>
-                                    <p className="font-medium">
-                                      <Badge variant={selectedUser.account_status === 'admin' ? 'default' : 'secondary'}>
-                                        {selectedUser.account_status}
-                                      </Badge>
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Date Joined</label>
-                                    <p>{formatDate(selectedUser.date_joined)}</p>
-                                  </div>
-                                  <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Last Login</label>
-                                    <p>{formatDate(selectedUser.last_login)}</p>
-                                  </div>
-                                  <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Country</label>
-                                    <p>{selectedUser.country || 'Not specified'}</p>
-                                  </div>
-                                  <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Date of Birth</label>
-                                    <p>{selectedUser.dob ? new Date(selectedUser.dob).toLocaleDateString() : 'Not specified'}</p>
-                                  </div>
-                                  <div>
-                                    <label className="text-sm font-medium text-muted-foreground">User ID</label>
-                                    <p className="text-xs font-mono bg-muted p-1 rounded">{selectedUser.id}</p>
-                                  </div>
-                                  <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Status</label>
-                                    <p>
-                                      {selectedUser.banned ? (
-                                        <Badge variant="destructive">Banned</Badge>
-                                      ) : (
-                                        <Badge variant="default">Active</Badge>
-                                      )}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                            ) : (
-                              <p className="text-center text-muted-foreground py-4">No user details available</p>
-                            )}
-                          </DialogContent>
-                        </Dialog>
+                      </span>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <p className="font-medium">
+                        User: {log.user_name || 'Unknown'}
+                      </p>
+                      
+                      {log.action_details && (
+                        <div className="text-sm text-muted-foreground">
+                          {Object.entries(log.action_details as Record<string, any>).map(([key, value]) => (
+                            <div key={key}>
+                              <span className="font-medium">{key.replace(/_/g, ' ')}:</span> {String(value)}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {log.ip_address && (
+                        <p className="text-xs text-muted-foreground">
+                          IP: {log.ip_address}
+                        </p>
                       )}
                     </div>
                   </div>
                   
-                  {log.action_details && (
-                    <div className="mt-2 p-2 bg-muted rounded text-sm">
-                      <strong>Details:</strong>
-                      <pre className="mt-1 whitespace-pre-wrap text-xs">
-                        {JSON.stringify(log.action_details, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-                  
-                  {(log.ip_address || log.user_agent) && (
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      {log.ip_address && <div>IP: {log.ip_address}</div>}
-                      {log.user_agent && <div>User Agent: {log.user_agent}</div>}
-                    </div>
+                  {log.user_id && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fetchUserDetails(log.user_id!)}
+                    >
+                      <Eye className="h-4 w-4 mr-1" />
+                      View Details
+                    </Button>
                   )}
                 </div>
-              ))}
-              
-              {logs.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  No activity logs found
-                </div>
-              )}
-            </div>
-          </ScrollArea>
+              </CardContent>
+            </Card>
+          ))
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">
+            No admin logs available
+          </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+
+      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>User Details</DialogTitle>
+          </DialogHeader>
+          
+          {selectedUser && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                {selectedUser.profile_pic ? (
+                  <img
+                    src={selectedUser.profile_pic}
+                    alt={selectedUser.name}
+                    className="w-12 h-12 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                    <User className="h-6 w-6" />
+                  </div>
+                )}
+                <div>
+                  <h3 className="font-semibold">{selectedUser.name}</h3>
+                  <Badge variant={selectedUser.account_status === 'admin' ? 'admin' : 'secondary'}>
+                    {selectedUser.account_status}
+                  </Badge>
+                </div>
+              </div>
+              
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  <span>Joined: {formatDate(selectedUser.date_joined)}</span>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  <span>Last Login: {formatDate(selectedUser.last_login)}</span>
+                </div>
+                
+                {selectedUser.country && (
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4" />
+                    <span>Country: {selectedUser.country}</span>
+                  </div>
+                )}
+                
+                {selectedUser.dob && (
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    <span>DOB: {new Date(selectedUser.dob).toLocaleDateString()}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 };
