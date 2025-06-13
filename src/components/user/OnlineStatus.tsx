@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { Circle, CircleDot } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface OnlineStatusProps {
@@ -71,9 +72,11 @@ export const OnlineStatus: React.FC<OnlineStatusProps> = ({ userId, className })
   
   return (
     <div className={cn("absolute bottom-0 right-0", className)}>
-      <div className={`h-3 w-3 rounded-full border-2 border-white ${
-        isOnline ? 'bg-green-500' : 'bg-gray-400'
-      }`} />
+      {isOnline ? (
+        <CircleDot className="text-green-500 h-3 w-3 fill-green-500" />
+      ) : (
+        <Circle className="text-gray-400 h-3 w-3" />
+      )}
     </div>
   );
 };

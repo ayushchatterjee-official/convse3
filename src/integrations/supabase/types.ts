@@ -36,36 +36,6 @@ export type Database = {
         }
         Relationships: []
       }
-      admin_logs: {
-        Row: {
-          action_details: Json | null
-          action_type: string
-          created_at: string
-          id: string
-          ip_address: unknown | null
-          user_agent: string | null
-          user_id: string | null
-        }
-        Insert: {
-          action_details?: Json | null
-          action_type: string
-          created_at?: string
-          id?: string
-          ip_address?: unknown | null
-          user_agent?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          action_details?: Json | null
-          action_type?: string
-          created_at?: string
-          id?: string
-          ip_address?: unknown | null
-          user_agent?: string | null
-          user_id?: string | null
-        }
-        Relationships: []
-      }
       admin_private_messages: {
         Row: {
           conversation_id: string | null
@@ -581,10 +551,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      cleanup_old_notifications: {
-        Args: Record<PropertyKey, never>
-        Returns: number
-      }
       create_group_call: {
         Args: { p_group_id: string; p_user_id: string }
         Returns: string
@@ -647,16 +613,6 @@ export type Database = {
       leave_voice_call: {
         Args: { p_call_id: string; p_user_id: string }
         Returns: boolean
-      }
-      log_user_activity: {
-        Args: {
-          p_user_id: string
-          p_action_type: string
-          p_action_details?: Json
-          p_ip_address?: unknown
-          p_user_agent?: string
-        }
-        Returns: string
       }
     }
     Enums: {

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/layouts/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,8 +11,6 @@ import { UserAvatar } from '@/components/user/UserAvatar';
 import { CircleCheck } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { AdminLogs } from '@/components/admin/AdminLogs';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface User {
   id: string;
@@ -183,121 +182,108 @@ const Admin = () => {
       <div className="container mx-auto p-4">
         <h1 className="text-3xl font-bold mb-6">Admin Dashboard</h1>
         
-        <Tabs defaultValue="users" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="users">User Management</TabsTrigger>
-            <TabsTrigger value="logs">Activity Logs</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="users">
-            <Card>
-              <CardHeader>
-                <CardTitle>User Management</CardTitle>
-                <CardDescription>
-                  Manage user accounts, verification status, and permissions
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <div className="flex justify-center py-4">
-                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse">
-                      <thead>
-                        <tr className="bg-muted text-muted-foreground text-sm">
-                          <th className="p-2 text-left">User</th>
-                          <th className="p-2 text-left">Email</th>
-                          <th className="p-2 text-left">Status</th>
-                          <th className="p-2 text-left">Joined</th>
-                          <th className="p-2 text-left">Last Login</th>
-                          <th className="p-2 text-left">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {users.map((user) => (
-                          <tr key={user.id} className="hover:bg-muted/50">
-                            <td className="p-2">
-                              <div className="flex items-center gap-2">
-                                <UserAvatar 
-                                  userId={user.id}
-                                  profilePic={user.profile_pic}
-                                  name={user.name}
-                                  accountStatus={user.account_status}
+        <Card>
+          <CardHeader>
+            <CardTitle>User Management</CardTitle>
+            <CardDescription>
+              Manage user accounts, verification status, and permissions
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="flex justify-center py-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-muted text-muted-foreground text-sm">
+                      <th className="p-2 text-left">User</th>
+                      <th className="p-2 text-left">Email</th>
+                      <th className="p-2 text-left">Status</th>
+                      <th className="p-2 text-left">Joined</th>
+                      <th className="p-2 text-left">Last Login</th>
+                      <th className="p-2 text-left">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {users.map((user) => (
+                      <tr key={user.id} className="hover:bg-muted/50">
+                        <td className="p-2">
+                          <div className="flex items-center gap-2">
+                            <UserAvatar 
+                              userId={user.id}
+                              profilePic={user.profile_pic}
+                              name={user.name}
+                              accountStatus={user.account_status}
+                              size="sm"
+                            />
+                            <span>{user.name}</span>
+                          </div>
+                        </td>
+                        <td className="p-2">
+                          {user.email}
+                        </td>
+                        <td className="p-2">
+                          <div className="flex gap-1 flex-wrap">
+                            {user.account_status === 'admin' && (
+                              <Badge variant="admin">Admin</Badge>
+                            )}
+                            {user.account_status === 'verified' && (
+                              <Badge variant="verified">
+                                <span className="flex items-center gap-1">
+                                  <CircleCheck className="h-3 w-3" />
+                                  Verified
+                                </span>
+                              </Badge>
+                            )}
+                            {user.banned && (
+                              <Badge variant="destructive">Banned</Badge>
+                            )}
+                            {user.account_status === 'normal' && !user.banned && (
+                              <Badge variant="secondary">Normal</Badge>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-2">
+                          {formatDate(user.date_joined)}
+                        </td>
+                        <td className="p-2">
+                          {formatDate(user.last_login)}
+                        </td>
+                        <td className="p-2">
+                          <div className="flex gap-2">
+                            {user.account_status !== 'admin' && (
+                              <>
+                                <Button
                                   size="sm"
-                                />
-                                <span>{user.name}</span>
-                              </div>
-                            </td>
-                            <td className="p-2">
-                              {user.email}
-                            </td>
-                            <td className="p-2">
-                              <div className="flex gap-1 flex-wrap">
-                                {user.account_status === 'admin' && (
-                                  <Badge variant="admin">Admin</Badge>
-                                )}
-                                {user.account_status === 'verified' && (
-                                  <Badge variant="verified">
-                                    <span className="flex items-center gap-1">
-                                      <CircleCheck className="h-3 w-3" />
-                                      Verified
-                                    </span>
-                                  </Badge>
-                                )}
-                                {user.banned && (
-                                  <Badge variant="destructive">Banned</Badge>
-                                )}
-                                {user.account_status === 'normal' && !user.banned && (
-                                  <Badge variant="secondary">Normal</Badge>
-                                )}
-                              </div>
-                            </td>
-                            <td className="p-2">
-                              {formatDate(user.date_joined)}
-                            </td>
-                            <td className="p-2">
-                              {formatDate(user.last_login)}
-                            </td>
-                            <td className="p-2">
-                              <div className="flex gap-2">
-                                {user.account_status !== 'admin' && (
-                                  <>
-                                    <Button
-                                      size="sm"
-                                      variant={user.account_status === 'verified' ? "outline" : "secondary"}
-                                      onClick={() => handleVerifyUser(user.id, user.account_status)}
-                                      disabled={processingUserId === user.id}
-                                    >
-                                      {user.account_status === 'verified' ? 'Unverify' : 'Verify'}
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant={user.banned ? "outline" : "destructive"}
-                                      onClick={() => handleBanUser(user.id, user.banned)}
-                                      disabled={processingUserId === user.id}
-                                    >
-                                      {user.banned ? 'Unban' : 'Ban'}
-                                    </Button>
-                                  </>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-          
-          <TabsContent value="logs">
-            <AdminLogs />
-          </TabsContent>
-        </Tabs>
+                                  variant={user.account_status === 'verified' ? "outline" : "secondary"}
+                                  onClick={() => handleVerifyUser(user.id, user.account_status)}
+                                  disabled={processingUserId === user.id}
+                                >
+                                  {user.account_status === 'verified' ? 'Unverify' : 'Verify'}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant={user.banned ? "outline" : "destructive"}
+                                  onClick={() => handleBanUser(user.id, user.banned)}
+                                  disabled={processingUserId === user.id}
+                                >
+                                  {user.banned ? 'Unban' : 'Ban'}
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );

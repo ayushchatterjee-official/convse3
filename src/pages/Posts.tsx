@@ -21,7 +21,6 @@ export interface Post {
   user_profile_pic?: string;
   user_liked?: boolean;
   allow_download?: boolean;
-  account_status?: 'normal' | 'admin' | 'verified';
 }
 
 const Posts = () => {
@@ -98,8 +97,7 @@ const Posts = () => {
           user_name: profile?.name || 'Unknown User',
           user_profile_pic: profile?.profile_pic,
           user_liked: likedPostsSet.has(post.id),
-          allow_download: post.allow_download !== false,
-          account_status: (profile?.account_status as 'normal' | 'admin' | 'verified') || 'normal'
+          allow_download: post.allow_download !== false // Default to true if not specified
         };
       });
 

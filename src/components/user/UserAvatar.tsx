@@ -15,7 +15,6 @@ interface UserAvatarProps {
   accountStatus?: 'normal' | 'admin' | 'verified';
   clickable?: boolean;
   onClick?: () => void;
-  showBadgeInline?: boolean;
 }
 
 export const UserAvatar: React.FC<UserAvatarProps> = ({ 
@@ -26,8 +25,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   size = 'md',
   accountStatus,
   clickable = true,
-  onClick,
-  showBadgeInline = false
+  onClick
 }) => {
   const navigate = useNavigate();
   
@@ -53,43 +51,6 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
       navigate(`/?usr=${name}`);
     }
   };
-  
-  if (showBadgeInline) {
-    return (
-      <div className="flex items-center gap-2">
-        <div className="relative">
-          <Avatar 
-            className={`${sizeClasses[size]} ${clickable ? 'cursor-pointer' : ''}`}
-            onClick={handleClick}
-          >
-            {profilePic ? (
-              <AvatarImage src={profilePic} alt={name || 'User'} />
-            ) : (
-              <AvatarFallback>
-                {name ? getInitials(name) : 'U'}
-              </AvatarFallback>
-            )}
-          </Avatar>
-          
-          {showStatus && (
-            <OnlineStatus userId={userId} />
-          )}
-        </div>
-        
-        <div className="flex items-center gap-1">
-          <span className={clickable ? 'cursor-pointer hover:underline' : ''} onClick={handleClick}>
-            {name}
-          </span>
-          {accountStatus === 'verified' && (
-            <CircleCheck className="h-4 w-4 text-blue-500 fill-blue-100" />
-          )}
-          {accountStatus === 'admin' && (
-            <Badge variant="admin" className="text-xs">Admin</Badge>
-          )}
-        </div>
-      </div>
-    );
-  }
   
   return (
     <div className="relative">
